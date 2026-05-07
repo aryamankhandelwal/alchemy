@@ -4,17 +4,17 @@ export default {
   theme: {
     extend: {
       colors: {
-        bg: '#0e0e0e',
-        surface: '#161616',
-        elevated: '#1c1c1c',
-        line: '#262626',
-        divider: '#1e1e1e',
+        bg: '#1c1d22',
+        surface: '#25272e',
+        elevated: '#2e3038',
+        line: '#3a3c44',
+        divider: '#2a2c33',
         fg: '#f0f0f0',
-        muted: '#888888',
-        dim: '#5a5a5a',
-        accent: '#e8d5a3',
+        muted: '#9ca0aa',
+        dim: '#5f626c',
+        accent: '#5b8def',
         ok: '#4ade80',
-        warn: '#fbbf24',
+        warn: '#7aa3e0',
         bad: '#f87171'
       },
       fontFamily: {
@@ -26,6 +26,10 @@ export default {
       },
       letterSpacing: {
         wider2: '0.18em'
+      },
+      boxShadow: {
+        card: '0 2px 4px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.30)',
+        'card-hover': '0 10px 24px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.40)'
       }
     }
   },

@@ -23,9 +23,9 @@ export function BetCard({ bet, onClick, isDragOverlay = false }) {
       {...(isDragOverlay ? {} : attributes)}
       {...(isDragOverlay ? {} : listeners)}
       onClick={() => { if (!isDragging && !isDragOverlay) onClick?.(bet.id) }}
-      className={`group relative bg-surface border border-line rounded-card p-5 select-none
+      className={`group relative bg-surface border border-line rounded-card p-5 select-none shadow-card
                   ${isDragOverlay ? 'cursor-grabbing' : 'cursor-grab active:cursor-grabbing'}
-                  hover:border-muted/40 hover:-translate-y-0.5 hover:shadow-xl
+                  hover:border-accent/40 hover:-translate-y-1 hover:shadow-card-hover
                   transition-[transform,box-shadow,border-color] duration-150
                   ${dimmed} ${overlayCls}`}
     >

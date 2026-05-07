@@ -18,8 +18,14 @@ export function OverviewSection({ bet }) {
         <Field label="Stage"><StageBadge stage={bet.stage} /></Field>
         <Field label="Decision"><DecisionBadge decision={bet.decision} /></Field>
         <Field label="Score">
-          <span className="text-2xl text-accent font-bold leading-none">{bet.score}</span>
-          <span className="text-muted text-sm ml-1">/ 100</span>
+          {bet.score == null ? (
+            <span className="text-2xl text-dim font-bold leading-none">—</span>
+          ) : (
+            <>
+              <span className="text-2xl text-accent font-bold leading-none">{bet.score}</span>
+              <span className="text-muted text-sm ml-1">/ 100</span>
+            </>
+          )}
         </Field>
       </div>
 

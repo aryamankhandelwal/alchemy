@@ -1,15 +1,18 @@
 import { useState, useCallback } from 'react'
 import { SEED_BETS } from './data/bets.js'
 import { applyPatch } from './lib/applyPatch.js'
+import { createBet } from './lib/createBet.js'
 import { Header } from './components/Header.jsx'
 import { SummaryBar } from './components/SummaryBar.jsx'
 import { KanbanGrid } from './components/KanbanGrid.jsx'
 import { BetModal } from './components/BetModal.jsx'
+import { AddBetModal } from './components/AddBetModal.jsx'
 import { Toast } from './components/Toast.jsx'
 
 export default function App() {
   const [bets, setBets] = useState(SEED_BETS)
   const [openBetId, setOpenBetId] = useState(null)
+  const [addOpen, setAddOpen] = useState(false)
   const [toast, setToast] = useState(null)
 
   const openBet = openBetId ? bets.find(b => b.id === openBetId) : null
@@ -26,9 +29,16 @@ export default function App() {
     setBets(prev => prev.map(b => (b.id === id ? applyPatch(b, patch) : b)))
   }, [])
 
+  const handleCreate = useCallback((formData) => {
+    const bet = createBet(formData)
+    setBets(prev => [...prev, bet])
+    setAddOpen(false)
+    setToast(`${bet.name} added to ${bet.stage} · ${bet.decision}`)
+  }, [])
+
   return (
     <div className="min-h-screen bg-bg text-fg flex flex-col">
-      <Header />
+      <Header onAddBet={() => setAddOpen(true)} />
       <SummaryBar bets={bets} />
       <main className="flex-1">
         <KanbanGrid
@@ -44,6 +54,11 @@ export default function App() {
           onPatch={handlePatch}
         />
       )}
+      <AddBetModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onCreate={handleCreate}
+      />
       <Toast message={toast} onDismiss={() => setToast(null)} />
     </div>
   )
