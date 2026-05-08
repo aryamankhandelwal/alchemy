@@ -14,11 +14,11 @@ export default {
         dim: '#5f626c',
         accent: '#5b8def',
         ok: '#4ade80',
-        warn: '#7aa3e0',
+        warn: '#f5b942',
         bad: '#f87171'
       },
       fontFamily: {
-        mono: ['"Fira Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace']
+        sans: ['Helvetica', '"Helvetica Neue"', 'Arial', 'sans-serif']
       },
       borderRadius: {
         card: '8px',

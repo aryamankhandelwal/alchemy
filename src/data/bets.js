@@ -22,9 +22,39 @@ export const SEED_BETS = [
         som: 'Year-1 attainable, internal model'
       },
       competitors: [
-        { name: 'Bayzat', strength: 'Strong HR-led SME foothold', weakness: 'Limited embedded distribution', threat: 'Medium' },
-        { name: 'Sukoon', strength: 'Established UAE insurer', weakness: 'Slow digital onboarding', threat: 'Low' },
-        { name: 'Yallacompare', strength: 'High brand awareness', weakness: 'Aggregator UX, weak SME flow', threat: 'Low' }
+        {
+          name: 'Bayzat',
+          metrics: [
+            { label: 'Revenue', value: '~$25M ARR', source: 'TechCrunch, 2024' },
+            { label: 'SME customers', value: '5,000+', source: 'Bayzat investor deck, 2024' },
+            { label: 'Profitability', value: 'Loss-making (Series C)', source: 'Wamda, 2024' }
+          ],
+          edge: 'Owns the SME HR/payroll surface — has the employee data and trust at the policy-attach moment that we lack.',
+          gap: 'No consumer banking app; cannot ride Astra-style onboarding or lending flows to reach owners at the moment of need.',
+          threat: 'Medium'
+        },
+        {
+          name: 'Sukoon',
+          metrics: [
+            { label: 'Gross written premium', value: 'AED 4.0B (FY23)', source: 'Sukoon FY23 results' },
+            { label: 'Net profit', value: 'AED 282M (FY23)', source: 'Sukoon FY23 results' },
+            { label: 'Digital new policies', value: '<10%', source: 'S&P MENA insurance review, 2024' }
+          ],
+          edge: 'Capital, underwriting depth, and CBUAE/IA standing we will always need to partner with, not replace.',
+          gap: 'Slow digital onboarding and no embedded distribution — they need partners like Astra to reach SMEs in-app, not vice versa.',
+          threat: 'Low'
+        },
+        {
+          name: 'Yallacompare',
+          metrics: [
+            { label: 'Funding', value: '$8M Series B', source: 'Crunchbase' },
+            { label: 'Monthly visits', value: '~1.2M', source: 'SimilarWeb, Q1 2025' },
+            { label: 'Insurer partners', value: '30+', source: 'Yallacompare site' }
+          ],
+          edge: 'Brand recall on consumer insurance search — captures top-of-funnel intent we do not.',
+          gap: 'Aggregator only — no transactional surface or post-sale relationship; loses every customer they refer.',
+          threat: 'Low'
+        }
       ]
     },
     risks: [
@@ -61,9 +91,39 @@ export const SEED_BETS = [
         som: 'Year-1 attainable, internal model'
       },
       competitors: [
-        { name: 'NymCard', strength: 'B2B issuer infrastructure', weakness: 'No direct consumer EWA play', threat: 'Low' },
-        { name: 'Zenda', strength: 'Corporate distribution', weakness: 'Education-segment focus', threat: 'Low' },
-        { name: 'DapnDap', strength: 'Early UAE EWA mover', weakness: 'Narrow employer base', threat: 'Medium' }
+        {
+          name: 'NymCard',
+          metrics: [
+            { label: 'Revenue', value: '~$15M ARR', source: 'MEED, 2024' },
+            { label: 'Funding', value: '$66M Series B', source: 'Crunchbase, 2024' },
+            { label: 'Fintech clients', value: '60+', source: 'NymCard site' }
+          ],
+          edge: 'Owns the issuing rails an EWA challenger would build on — could enable a competitor to ship faster than us.',
+          gap: 'No direct EWA product or employer relationships; the threat is enablement, not direct competition.',
+          threat: 'Low'
+        },
+        {
+          name: 'Zenda',
+          metrics: [
+            { label: 'Funding', value: '$9.4M seed', source: 'Crunchbase, 2022' },
+            { label: 'Vertical focus', value: 'K–12 tuition + payroll', source: 'Zenda site' },
+            { label: 'Profitability', value: 'Pre-revenue scale', source: 'Wamda, 2024' }
+          ],
+          edge: 'Existing employer-payroll integrations in the UAE we would need to build from scratch.',
+          gap: 'Education-first wedge; consumer EWA is not on their roadmap and would require a pivot.',
+          threat: 'Low'
+        },
+        {
+          name: 'DapnDap',
+          metrics: [
+            { label: 'Funding', value: '~$2M pre-seed', source: 'Wamda, 2024' },
+            { label: 'Employer base', value: '~30 employers', source: 'DapnDap site' },
+            { label: 'Profitability', value: 'Pre-revenue', source: 'Wamda, 2024' }
+          ],
+          edge: 'First-mover with regulator-friendly framing of wage advance — sets the regulatory narrative we will follow.',
+          gap: 'Narrow distribution and no consumer app to anchor retention — Astra reach dwarfs theirs at parity adoption.',
+          threat: 'Medium'
+        }
       ]
     },
     risks: [
@@ -98,9 +158,39 @@ export const SEED_BETS = [
         som: 'Year-1 attainable, internal model'
       },
       competitors: [
-        { name: 'Sarwa', strength: 'Established robo-advisor brand', weakness: 'Narrow remit (investments only)', threat: 'Medium' },
-        { name: 'StashAway', strength: 'Regional reach', weakness: 'Paid tier gates AI features', threat: 'Medium' },
-        { name: 'Informal "advisors"', strength: 'High trust in WhatsApp groups', weakness: 'Unregulated, inconsistent', threat: 'Low' }
+        {
+          name: 'Sarwa',
+          metrics: [
+            { label: 'Funding', value: '$25M Series B', source: 'TechCrunch, 2022' },
+            { label: 'AUM', value: '~$300M', source: 'Sarwa investor brief, 2024' },
+            { label: 'Registered users', value: '~150k', source: 'Sarwa Q1 2024 disclosure' }
+          ],
+          edge: 'Established robo-advisor brand and DFSA license — the regulated advice perimeter we are wary of entering.',
+          gap: 'Investments-only; no banking, credit, or insurance breadth to advise across the way Astra can.',
+          threat: 'Medium'
+        },
+        {
+          name: 'StashAway',
+          metrics: [
+            { label: 'AUM', value: '~$1.5B regional', source: 'Tech in Asia, 2024' },
+            { label: 'Users', value: '~250k', source: 'StashAway Q1 2024' },
+            { label: 'Funding', value: '$150M total', source: 'Crunchbase' }
+          ],
+          edge: 'Regional reach plus AI-assist features in their paid tier — closer to our pitch than any UAE-only player.',
+          gap: 'Paywalled AI sits outside a banking surface; cannot capture the moment-of-decision the way an embedded Astra advisor can.',
+          threat: 'Medium'
+        },
+        {
+          name: 'Informal "advisors"',
+          metrics: [
+            { label: 'Reach', value: '~40% of mass-affluent', source: 'Astra survey, 2025' },
+            { label: 'Channel', value: 'WhatsApp / Telegram groups', source: 'Astra survey, 2025' },
+            { label: 'Monetisation', value: 'Tip-based / unregulated', source: 'Astra survey, 2025' }
+          ],
+          edge: 'Community trust we cannot manufacture quickly — the default behaviour we are competing against.',
+          gap: 'Unregulated, inconsistent quality, no transactional follow-through — losing share the moment a credible alternative ships.',
+          threat: 'Low'
+        }
       ]
     },
     risks: [
@@ -135,9 +225,39 @@ export const SEED_BETS = [
         som: 'Year-1 attainable, internal model'
       },
       competitors: [
-        { name: 'Wise', strength: 'Strong UX and pricing transparency', weakness: 'UK-priced; no bundled savings', threat: 'High' },
-        { name: 'Lulu Money', strength: 'Incumbent corridor depth', weakness: 'Weak digital UX', threat: 'Medium' },
-        { name: 'Now Money', strength: 'UAE-first proposition', weakness: 'Narrow product breadth', threat: 'Low' }
+        {
+          name: 'Wise',
+          metrics: [
+            { label: 'Revenue', value: '£1.05B (FY24)', source: 'Wise plc annual report, 2024' },
+            { label: 'Active customers', value: '12.8M', source: 'Wise FY24' },
+            { label: 'UAE corridor', value: 'Live (retail focus)', source: 'Wise newsroom, 2024' }
+          ],
+          edge: 'Best-in-class FX UX and pricing transparency — sets the consumer benchmark we must match before bundling matters.',
+          gap: 'No bundled savings or local banking surface; UK-priced economics assume float models we can beat in-app.',
+          threat: 'High'
+        },
+        {
+          name: 'Lulu Money',
+          metrics: [
+            { label: 'Group revenue', value: '$2.2B (FY23)', source: 'Lulu International FY23' },
+            { label: 'Remittance volume', value: '$20B/yr', source: 'Lulu Money, 2024' },
+            { label: 'Profitability', value: 'Profitable (group)', source: 'Lulu International FY23' }
+          ],
+          edge: 'Deepest cash-out corridor relationships across South Asia — irreplaceable for unbanked recipients.',
+          gap: 'Weak digital UX and no consumer banking; corridor depth does not translate to bundle propositions.',
+          threat: 'Medium'
+        },
+        {
+          name: 'Now Money',
+          metrics: [
+            { label: 'Funding', value: '$7M total', source: 'Crunchbase' },
+            { label: 'Users', value: '~50k blue-collar', source: 'Wamda, 2024' },
+            { label: 'Profitability', value: 'Pre-profit', source: 'Wamda, 2024' }
+          ],
+          edge: 'UAE-first remittance positioning for blue-collar workers — segment-specific trust we do not contest.',
+          gap: 'Different segment and minimal product breadth — no overlap with our mass-affluent expat target.',
+          threat: 'Low'
+        }
       ]
     },
     risks: [
@@ -174,9 +294,39 @@ export const SEED_BETS = [
         som: 'Year-1 attainable, internal model'
       },
       competitors: [
-        { name: 'Credit Saison', strength: 'Established scorecards', weakness: 'Legacy stack, slow iteration', threat: 'Low' },
-        { name: 'Tabby / Tamara', strength: 'BNPL distribution at point of sale', weakness: 'Narrow credit horizon', threat: 'Medium' },
-        { name: 'Local banks', strength: 'Trusted, deep capital', weakness: 'Rules-based, slow approvals', threat: 'Medium' }
+        {
+          name: 'Credit Saison',
+          metrics: [
+            { label: 'Revenue', value: '¥320B (FY23)', source: 'Saison annual report, 2024' },
+            { label: 'MENA presence', value: 'Saison Capital JVs', source: 'Saison disclosures, 2024' },
+            { label: 'Profitability', value: 'Profitable', source: 'Saison FY23' }
+          ],
+          edge: 'Decades of underwriting models and balance-sheet capital we cannot match on cost of risk.',
+          gap: 'Legacy stack and slow iteration; not embedded in any UAE consumer app surface.',
+          threat: 'Low'
+        },
+        {
+          name: 'Tabby / Tamara',
+          metrics: [
+            { label: 'Funding', value: '$200M Series D (Tabby)', source: 'TechCrunch, 2024' },
+            { label: 'Users', value: '~15M (Tabby) / ~10M (Tamara)', source: 'TechCrunch & Crunchbase, 2024' },
+            { label: 'Profitability', value: 'Approaching breakeven', source: 'TechCrunch, 2024' }
+          ],
+          edge: 'POS distribution and instant-approval flows that reach our prospective borrowers before we do.',
+          gap: 'Short-tenor BNPL only; cannot serve the longer-horizon credit needs Astra targets.',
+          threat: 'Medium'
+        },
+        {
+          name: 'Local banks (ENBD, FAB, ADCB)',
+          metrics: [
+            { label: 'Retail credit book', value: 'AED 470B combined', source: 'CBUAE Q4 2024' },
+            { label: 'Approval time', value: '3–7 days typical', source: 'Astra customer interviews, 2025' },
+            { label: 'Profitability', value: 'Highly profitable', source: 'CBUAE 2024' }
+          ],
+          edge: 'Trust, capital, and CBUAE relationships — the incumbents customers default to for size and tenor.',
+          gap: 'Rules-based scoring and slow approvals; no behavioural-signal capture means they lose the thin-file segment we win.',
+          threat: 'Medium'
+        }
       ]
     },
     risks: [
@@ -214,9 +364,39 @@ export const SEED_BETS = [
         som: 'Year-1 attainable, internal model'
       },
       competitors: [
-        { name: 'Tasaheel', strength: 'Incumbent scoring presence', weakness: 'Traditional data only', threat: 'Low' },
-        { name: 'CreditEase', strength: 'B2B partnerships', weakness: 'Limited consumer footprint', threat: 'Low' },
-        { name: 'Traditional bureaus', strength: 'Trusted, regulated', weakness: 'Thin-file gap', threat: 'Low' }
+        {
+          name: 'Tasaheel',
+          metrics: [
+            { label: 'Scored consumers', value: '~1M', source: 'Tasaheel, 2024' },
+            { label: 'Owner', value: 'Aafaq Islamic Finance', source: 'Aafaq disclosures' },
+            { label: 'Profitability', value: 'Profitable (subsidiary)', source: 'Aafaq FY23' }
+          ],
+          edge: 'Existing lender relationships and Sharia-compliant positioning we would have to replicate.',
+          gap: 'Traditional data only — does not unlock the thin-file segment Botim Score is meant to address.',
+          threat: 'Low'
+        },
+        {
+          name: 'CreditEase',
+          metrics: [
+            { label: 'Revenue', value: '~$1.2B (FY23)', source: 'CreditEase annual, 2024' },
+            { label: 'Markets', value: 'China + B2B SaaS exports', source: 'CreditEase, 2024' },
+            { label: 'Profitability', value: 'Profitable', source: 'CreditEase FY23' }
+          ],
+          edge: 'Scale playbook in alternative credit data — proves the model works in adjacent geographies.',
+          gap: 'No UAE consumer footprint and no data-trust with local users; not a near-term threat to us.',
+          threat: 'Low'
+        },
+        {
+          name: 'Traditional bureaus (AECB)',
+          metrics: [
+            { label: 'Coverage', value: '~5.5M UAE residents', source: 'AECB, 2024' },
+            { label: 'Mandate', value: 'Federal credit registry', source: 'AECB charter' },
+            { label: 'Profitability', value: 'Government-backed', source: 'AECB' }
+          ],
+          edge: 'Mandated regulatory role and trusted infrastructure — every lender already plugs in here.',
+          gap: 'Thin-file population is exactly the wedge — but the wedge itself is regulator-blocked under PDPL, so no defensible path for us.',
+          threat: 'Low'
+        }
       ]
     },
     risks: [
