@@ -2,66 +2,92 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: dark;
+@layer base {
+  :root {
+    /* Light defaults retained for completeness — the app forces dark via the .dark class on <html>. */
+    --background: 0 0% 100%;
+    --foreground: 230 10% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 230 10% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 230 10% 12%;
+    --primary: 220 82% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 228 10% 95%;
+    --secondary-foreground: 230 10% 12%;
+    --muted: 228 10% 95%;
+    --muted-foreground: 226 6% 40%;
+    --accent: 228 10% 95%;
+    --accent-foreground: 230 10% 12%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 69% 42%;
+    --success-foreground: 0 0% 100%;
+    --warning: 40 90% 50%;
+    --warning-foreground: 0 0% 100%;
+    --border: 228 8% 90%;
+    --input: 228 8% 90%;
+    --ring: 220 82% 55%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* Astra Tech / New Horizons dark palette mapped to shadcn tokens. */
+    --background: 230 10% 12%;          /* bg #1c1d22 */
+    --foreground: 0 0% 94%;             /* fg #f0f0f0 */
+    --card: 227 11% 16%;                /* surface #25272e */
+    --card-foreground: 0 0% 94%;
+    --popover: 228 10% 20%;             /* elevated #2e3038 */
+    --popover-foreground: 0 0% 94%;
+    --primary: 220 82% 65%;             /* accent #5b8def */
+    --primary-foreground: 230 10% 12%;
+    --secondary: 228 10% 20%;
+    --secondary-foreground: 0 0% 94%;
+    --muted: 227 10% 18%;               /* divider #2a2c33 */
+    --muted-foreground: 220 8% 64%;     /* muted #9ca0aa */
+    --accent: 228 10% 20%;
+    --accent-foreground: 0 0% 94%;
+    --destructive: 0 91% 71%;           /* bad #f87171 */
+    --destructive-foreground: 0 0% 94%;
+    --success: 142 69% 58%;             /* ok #4ade80 */
+    --success-foreground: 230 10% 12%;
+    --warning: 40 90% 61%;              /* warn #f5b942 */
+    --warning-foreground: 230 10% 12%;
+    --border: 228 8% 25%;               /* line #3a3c44 */
+    --input: 228 8% 25%;
+    --ring: 220 82% 65%;
+  }
 }
 
-html, body, #root {
-  height: 100%;
-  background: #1c1d22;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: Helvetica, 'Helvetica Neue', Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  html, body, #root {
+    height: 100%;
+  }
 }
 
-body {
-  font-family: Helvetica, 'Helvetica Neue', Arial, sans-serif;
-  color: #f0f0f0;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #3a3c44;
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #4a4c54;
-}
-
-button:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible,
-[tabindex]:focus-visible {
-  outline: 1px solid #5b8def;
-  outline-offset: 2px;
-}
-
-@keyframes fadeScaleIn {
-  from { opacity: 0; transform: scale(0.97); }
-  to   { opacity: 1; transform: scale(1); }
-}
-.animate-modal-in {
-  animation: fadeScaleIn 200ms ease-out;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-.animate-fade-in {
-  animation: fadeIn 180ms ease-out;
-}
-
-@keyframes slideUpIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.animate-slide-up {
-  animation: slideUpIn 200ms ease-out;
+@layer utilities {
+  /* Custom scrollbar — preserves the original chrome. */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.4);
+  }
 }

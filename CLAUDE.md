@@ -8,17 +8,39 @@ All bet data is hard-coded from the New Horizons memo. No persistence — refres
 
 ---
 
+## Keeping this doc current
+
+**When you make a structural change to the codebase, update this file in the same PR.** Specifically, update CLAUDE.md whenever you:
+
+- Add, remove, or rename a top-level file under `src/` or `server/`
+- Add or remove a shadcn primitive in `src/components/ui/`
+- Change the tech stack (deps, build tool, framework version)
+- Change the theme tokens, path aliases, or tsconfig structure
+- Change the AI patch contract (shape of `patch` / `reply` from `/api/chat`)
+- Change the KPI schema (add/remove a KPI, change a threshold)
+- Move something into or out of the "Out of scope" list
+
+Sections most prone to drift: **Tech stack**, **File structure**, **KPI framework reference**. Verify these match reality before closing a task. If the change is purely a bug fix or a leaf-component tweak, no update needed.
+
+---
+
 ## Tech stack
 
 | Layer | Choice |
 | --- | --- |
-| Build tool | Vite (React + JS) |
-| UI | React 18, Tailwind CSS 3, Lucide icons |
+| Build tool | Vite 5 (React 18 + TypeScript) |
+| UI primitives | [shadcn/ui](https://ui.shadcn.com) (new-york style) on Radix |
+| Styling | Tailwind CSS 3 + `tailwindcss-animate`, HSL CSS-variable theme |
+| Utilities | `class-variance-authority`, `clsx`, `tailwind-merge`, `cn()` helper |
+| Icons | `lucide-react` |
 | Drag & drop | `@dnd-kit/core` |
-| Font | Fira Mono (Google Fonts) |
+| Toasts | `sonner` (mounted at `App.tsx` root, called via `toast.success(...)`) |
+| Font | Helvetica / Helvetica Neue (system) |
 | LLM | Vercel AI SDK (`ai`) + `@openrouter/ai-sdk-provider` |
 | Schema | Zod for the AI's structured output |
-| State | React `useState` in `App.jsx` (single bets array) |
+| State | React `useState` in `App.tsx` (single `bets` array, no global store) |
+
+Path alias: `@/*` → `src/*` (configured in `tsconfig.json` and `vite.config.ts`).
 
 ---
 
@@ -27,12 +49,12 @@ All bet data is hard-coded from the New Horizons memo. No persistence — refres
 ```bash
 npm install
 cp .env.example .env       # then fill in OPENROUTER_API_KEY
-npm run dev
+npm run dev                # → http://localhost:5173
+npm run build              # tsc -b && vite build
+npm run typecheck          # tsc -b --noEmit
 ```
 
-Open http://localhost:5173.
-
-The AI chat works **only** if `OPENROUTER_API_KEY` is set. Without a key, the chat replies with a setup hint but the rest of the app (drag-and-drop, modals, KPI tracking) works fully.
+The AI chat works **only** if `OPENROUTER_API_KEY` is set. Without a key, the chat replies with a setup hint but the rest of the app (drag-and-drop, modals, KPI tracking, adding bets) works fully.
 
 To switch models, set `OPENROUTER_MODEL` in `.env` to any OpenRouter slug (`anthropic/claude-sonnet-4.5`, `openai/gpt-4o`, `google/gemini-2.5-flash`, etc.). No code changes needed.
 
@@ -45,45 +67,83 @@ Alchemy/
 ├── CLAUDE.md                       this file
 ├── README.md
 ├── package.json
-├── vite.config.js                  registers /api/chat middleware
-├── tailwind.config.js              custom palette + Fira Mono
+├── tsconfig.json                   single TS config (src + server + vite.config)
+├── vite.config.ts                  registers /api/chat middleware + @ alias
+├── tailwind.config.ts              shadcn HSL token theme + tailwindcss-animate
 ├── postcss.config.js
+├── components.json                 shadcn CLI config (new-york, tsx, @ aliases)
 ├── index.html
 ├── .env.example
 ├── server/
-│   └── chat.js                     /api/chat handler (Vercel AI SDK)
+│   └── chat.ts                     /api/chat handler (Vercel AI SDK)
 └── src/
-    ├── main.jsx
-    ├── App.jsx                     top-level state: bets, openBetId, toast
-    ├── index.css                   Tailwind layers + Fira Mono import
+    ├── main.tsx                    bootstrap; force-adds `dark` class on <html>
+    ├── App.tsx                     top-level state: bets, openBetId, addOpen
+    ├── index.css                   Tailwind layers + :root / .dark token blocks
+    ├── types/
+    │   └── bet.ts                  Bet, Stage, Decision, KpiStatus, Patch, …
     ├── data/
-    │   └── bets.js                 hard-coded 6 bets from the memo
+    │   └── bets.ts                 hard-coded 6 bets from the memo
     ├── lib/
-    │   ├── kpiSchema.js            per-stage KPI defs + thresholds + evaluator
-    │   ├── stages.js               STAGES, DECISIONS constants
-    │   ├── systemPrompt.js         builds AI system prompt from memo + bet
-    │   └── applyPatch.js           merges AI's JSON patch into a bet
+    │   ├── utils.ts                cn() — clsx + tailwind-merge
+    │   ├── kpiSchema.ts            per-stage KPI defs + thresholds + evaluator
+    │   ├── stages.ts               STAGES, DECISIONS, badge-variant tone maps
+    │   ├── systemPrompt.ts         builds AI system prompt from memo + bet
+    │   ├── applyPatch.ts           merges AI's JSON patch into a bet (immutable)
+    │   ├── createBet.ts            factory for bets added via AddBetModal
+    │   └── history.ts              diff a patch into Change[] + describe entries
     └── components/
-        ├── Header.jsx              ⬡ Alchemy wordmark + "New Horizons · Astra Tech"
-        ├── SummaryBar.jsx          totals strip
-        ├── KanbanGrid.jsx          3-col × 4-row grid + DndContext
-        ├── KanbanCell.jsx          one droppable cell
-        ├── BetCard.jsx             draggable collapsed card
-        ├── BetModal.jsx            two-panel modal shell
-        ├── ChatPanel.jsx           AI chat (right side of modal)
-        ├── Toast.jsx
-        ├── modal/                  left-panel sections
-        │   ├── CollapsibleSection.jsx
-        │   ├── OverviewSection.jsx
-        │   ├── AISummarySection.jsx
-        │   ├── MarketSection.jsx
-        │   ├── RiskSection.jsx
-        │   └── KPISection.jsx
-        └── ui/
-            ├── Badge.jsx
-            ├── KPIDot.jsx
-            └── ScorePill.jsx
+        ├── Header.tsx              ⬡ Alchemy wordmark + "Add bet" button
+        ├── SummaryBar.tsx          totals strip (total / prioritised / pilot / killed)
+        ├── KanbanGrid.tsx          3-col × 4-row grid + DndContext + DragOverlay
+        ├── KanbanCell.tsx          one droppable cell
+        ├── BetCard.tsx             draggable Card with badges + KPI dots + score
+        ├── BetModal.tsx            Dialog + Tabs shell (Summary / Market / KPIs / Risk / Projections / History)
+        ├── AddBetModal.tsx         Dialog form for new bets
+        ├── ChatPanel.tsx           AI chat (right side of BetModal)
+        ├── bet-badges.tsx          StageBadge, DecisionBadge, KPIDot, ScorePill, scoreTone
+        ├── modal/                  tab content for BetModal
+        │   ├── SummarySection.tsx
+        │   ├── MarketSection.tsx
+        │   ├── RiskSection.tsx
+        │   ├── KPISection.tsx
+        │   ├── ProjectionsSection.tsx
+        │   └── HistorySection.tsx
+        └── ui/                     shadcn primitives — DO NOT mix domain code here
+            ├── badge.tsx
+            ├── button.tsx
+            ├── card.tsx
+            ├── dialog.tsx
+            ├── input.tsx
+            ├── label.tsx
+            ├── scroll-area.tsx
+            ├── select.tsx
+            ├── separator.tsx
+            ├── slider.tsx
+            ├── sonner.tsx
+            ├── tabs.tsx
+            ├── textarea.tsx
+            └── tooltip.tsx
 ```
+
+---
+
+## Theme & styling conventions
+
+- The app is **dark-only** in production. `main.tsx` adds `class="dark"` to `<html>` on boot; the `.dark` block in `index.css` defines all HSL CSS variables. The light `:root` block is a fallback only.
+- **Use shadcn semantic tokens** (`bg-background`, `text-foreground`, `border-border`, `bg-card`, `bg-popover`, `text-primary`, `text-muted-foreground`, `bg-destructive`, etc.) — not the original raw palette (`bg-bg`, `text-fg`, `text-accent`). The brand palette is preserved by mapping the originals onto HSL vars in `index.css`.
+- Custom status tokens added on top of shadcn: `--success` (green), `--warning` (amber). Use `text-success` / `bg-warning` etc.
+- Use `cn(...)` from `@/lib/utils` to combine class names (handles Tailwind conflicts via `tailwind-merge`).
+- Component variants live in CVA blocks at the top of each primitive (`buttonVariants`, `badgeVariants`). Domain components (e.g. `StageBadge`) wrap the primitive with a fixed variant.
+
+### Adding a new shadcn primitive
+
+```bash
+# (Requires the shadcn CLI; alternatively, copy from the docs and adjust the import paths to @/lib/utils.)
+npx shadcn@latest add <component>
+```
+
+shadcn's CLI uses `components.json` to know the aliases, style, and TS preference. Generated files land in `src/components/ui/`. Don't put domain-specific components in `ui/` — that folder is reserved for shadcn primitives so future `shadcn diff` / upgrades stay clean.
 
 ---
 
@@ -91,25 +151,25 @@ Alchemy/
 
 The chat is the primary way to update a bet. Round-trip:
 
-1. User types in `ChatPanel.jsx` — Enter sends, Shift+Enter newlines.
+1. User types in `ChatPanel.tsx` — Enter sends, Shift+Enter newlines.
 2. The frontend POSTs `{ messages, bet }` to `/api/chat`.
-3. The server (`server/chat.js`) calls `generateObject` from the Vercel AI SDK with a Zod schema:
+3. The server (`server/chat.ts`) calls `generateObject` from the Vercel AI SDK with a Zod schema:
    ```ts
    {
-     patch: Record<string, any> | null,   // dot-paths → new values
-     reply: string                         // 1–2 sentence confirmation
+     patch: Record<string, unknown> | null,   // dot-paths → new values
+     reply: string                             // 1–2 sentence confirmation
    }
    ```
-4. The system prompt (`src/lib/systemPrompt.js`) is assembled from:
+4. The system prompt (`src/lib/systemPrompt.ts`) is assembled from:
    - The New Horizons framework primer (stages, decision logic).
-   - The full per-stage KPI thresholds, programmatically rendered from `kpiSchema.js` so they never drift from the source of truth.
+   - The full per-stage KPI thresholds, programmatically rendered from `kpiSchema.ts` so they never drift from the source of truth.
    - The current bet, JSON-stringified.
    - Output contract + few-shot examples.
-5. The frontend applies `patch` immutably via `applyPatch.js` and re-renders. The KPI tracker, score, badges, and card position all update in real time.
+5. The frontend applies `patch` immutably via `applyPatch.ts` and re-renders. The KPI tracker, score, badges, card position, and history log all update in real time.
 
 ### Patch format (examples)
 
-```js
+```ts
 // Update a KPI value
 { "kpis.ltvCac": 2.3 }
 
@@ -131,17 +191,19 @@ null
 
 Dot-paths follow standard JS access: `a.b`, `a[0].b`, plus the special key `<array>.add` to push.
 
+Every patch is diffed against the previous bet by `history.ts` and appended to `bet.history` as a `HistoryEntry`. Board drags are recorded the same way under source `'drag'`.
+
 ### Extending the AI
 
 - **Different model**: change `OPENROUTER_MODEL` env var. No code changes.
-- **Different provider**: swap `@openrouter/ai-sdk-provider` for `@ai-sdk/anthropic`, `@ai-sdk/openai`, etc. — Vercel AI SDK is provider-agnostic. Update `server/chat.js` (4 lines).
-- **Richer patches**: extend the schema in `server/chat.js` and the applier in `src/lib/applyPatch.js`.
+- **Different provider**: swap `@openrouter/ai-sdk-provider` for `@ai-sdk/anthropic`, `@ai-sdk/openai`, etc. — Vercel AI SDK is provider-agnostic. Update `server/chat.ts` (4 lines).
+- **Richer patches**: extend the schema in `server/chat.ts` and the applier in `src/lib/applyPatch.ts`. Add types in `src/types/bet.ts` if new fields appear.
 
 ---
 
 ## KPI framework reference
 
-KPIs are defined per stage in `src/lib/kpiSchema.js`. Each KPI has a label, format, threshold ranges, and an `evaluate(value)` function returning `'Kill' | 'Proceed' | 'Prioritise'`.
+KPIs are defined per stage in `src/lib/kpiSchema.ts`. Each KPI has a label, format, threshold ranges, and an `evaluate(value)` function returning `'Kill' | 'Proceed' | 'Prioritise'`.
 
 ### Evaluation (validate market demand exists)
 | KPI | Kill | Proceed | Prioritise |
@@ -149,7 +211,7 @@ KPIs are defined per stage in `src/lib/kpiSchema.js`. Each KPI has a label, form
 | Demand Signal | <5% | 5-15% | >15% |
 | Problem Severity | Low | Medium | High |
 | Market Clarity | Unclear | Partial | Well-defined |
-| Speed to MVP | >6 mo | 1-3 mo | <6 wk |
+| Speed to MVP | >26 wk | 6-26 wk | ≤6 wk |
 
 ### Pilot (validate behaviour + early economics)
 | KPI | Kill | Proceed | Prioritise |
@@ -172,24 +234,24 @@ KPIs are defined per stage in `src/lib/kpiSchema.js`. Each KPI has a label, form
 | Operational Scalability | Breaks | Needs optimisation | Scales cleanly |
 | Strategic Fit | Weak | Adjacent | Strong |
 
-The card-level health dots show the first three KPIs of the bet's current stage, color-coded green / amber / red.
+The card-level health dots show the first three KPIs of the bet's current stage, color-coded green / amber / red via `KPIDot` in `bet-badges.tsx`.
 
 ---
 
 ## Extending the system
 
-### Add a new bet
+### Add a new bet (programmatically)
 
-Append to `src/data/bets.js`:
+Append to `src/data/bets.ts` (the `Bet` type from `@/types/bet` is enforced by the compiler):
 
-```js
+```ts
 {
   id: 'kebab-case-id',
   name: 'Display Name',
   description: 'One-liner.',
   stage: 'Evaluation',          // or 'Pilot' / 'Scale'
   decision: 'Proceed',          // or 'Prioritise' / 'Kill' / 'Killed'
-  score: 50,
+  score: 50,                    // or null
   nullHypothesis: '…',
   targetCustomer: '…',
   aiSummary: '…',
@@ -201,36 +263,41 @@ Append to `src/data/bets.js`:
 
 The card lands in the grid cell matching its `stage` × `decision`.
 
+### Add a bet via the UI
+
+Click **Add bet** in the header → `AddBetModal` (Dialog with Input / Textarea / Select). `createBet()` in `src/lib/createBet.ts` produces the skeleton; the AI co-pilot is expected to flesh out market sizing, risks, and KPIs after creation.
+
 ### Modify the KPI schema
 
-`src/lib/kpiSchema.js` is the single source of truth — adding or changing a KPI updates:
+`src/lib/kpiSchema.ts` is the single source of truth — adding or changing a KPI updates:
 - The KPI tracker rows in the modal
 - The card health dots
 - The thresholds the AI references in its system prompt
 
 To add a KPI:
 
-```js
+```ts
 Pilot: {
   // …existing
   newMetric: {
     label: 'New Metric',
+    rationale: 'Why this matters.',
     format: 'pct',                                              // or 'x' / 'months' / 'weeks' / 'enum'
-    evaluate: v => v < 0.1 ? 'Kill' : v < 0.3 ? 'Proceed' : 'Prioritise',
+    formatValue: pct,
+    evaluate: (v) => Number(v) < 0.1 ? 'Kill' : Number(v) < 0.3 ? 'Proceed' : 'Prioritise',
     thresholds: '<10% kill · 10-30% proceed · >30% prioritise'  // shown in tooltip and AI prompt
   }
 }
 ```
 
-Then add the corresponding `kpis.newMetric` value on each Pilot bet in `bets.js`.
+Then add the corresponding `kpis.newMetric` value on each Pilot bet in `bets.ts`.
 
 ---
 
 ## Out of scope (v0)
 
 - Persistence — state is in memory; refreshing the page resets to seeded data.
-- Authentication.
-- Adding bets via UI (extend by editing `bets.js`).
-- Multi-user / real-time sync.
+- Authentication / multi-user / real-time sync.
 - Score evolution over time / charts.
+- Light mode (theme tokens exist but the app forces `.dark` on boot).
 - Tests.
