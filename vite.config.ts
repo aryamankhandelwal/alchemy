@@ -1,47 +1,108 @@
 import path from 'node:path'
+import type { IncomingMessage } from 'node:http'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 
 import { chatHandler } from './server/chat'
+import {
+  createBetHandler,
+  getBet,
+  listBets,
+  patchBetHandler,
+  runResearchHandler
+} from './server/routes/bets'
+
+type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
+
+interface Route {
+  method: Method
+  pattern: RegExp
+  handler: (ctx: { params: string[]; body: any }) => Promise<unknown>
+}
+
+const routes: Route[] = [
+  { method: 'GET', pattern: /^\/api\/bets$/, handler: () => listBets() },
+  {
+    method: 'POST',
+    pattern: /^\/api\/bets$/,
+    handler: ({ body }) => createBetHandler(body)
+  },
+  {
+    method: 'GET',
+    pattern: /^\/api\/bets\/([^/]+)$/,
+    handler: ({ params }) => getBet(params[0])
+  },
+  {
+    method: 'PATCH',
+    pattern: /^\/api\/bets\/([^/]+)$/,
+    handler: ({ params, body }) => patchBetHandler(params[0], body)
+  },
+  {
+    method: 'POST',
+    pattern: /^\/api\/research\/([^/]+)$/,
+    handler: ({ params }) => runResearchHandler(params[0])
+  },
+  {
+    method: 'POST',
+    pattern: /^\/api\/chat$/,
+    handler: ({ body }) => chatHandler(body)
+  }
+]
+
+function readBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let buf = ''
+    req.on('data', (chunk) => {
+      buf += chunk
+    })
+    req.on('end', () => resolve(buf))
+    req.on('error', reject)
+  })
+}
 
 function apiPlugin(): Plugin {
   return {
     name: 'alchemy-api',
     configureServer(server) {
-      server.middlewares.use('/api/chat', async (req, res, next) => {
-        if (req.method !== 'POST') return next()
-        let body = ''
-        req.on('data', (chunk) => {
-          body += chunk
-        })
-        req.on('end', async () => {
-          try {
-            const payload = JSON.parse(body || '{}')
-            const result = await chatHandler(payload)
-            res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify(result))
-          } catch (err) {
-            const e = err as Error
-            console.error('[/api/chat] error:', e)
-            res.statusCode = 500
-            res.setHeader('Content-Type', 'application/json')
-            res.end(
-              JSON.stringify({
-                patch: null,
-                reply: `Server error: ${e.message ?? 'unknown'}`
-              })
-            )
-          }
-        })
+      server.middlewares.use('/api', async (req, res, next) => {
+        const url = (req.url ?? '').split('?')[0]
+        const fullPath = `/api${url}`
+        const method = (req.method ?? 'GET') as Method
+        const route = routes.find((r) => r.method === method && r.pattern.test(fullPath))
+        if (!route) return next()
+
+        const match = route.pattern.exec(fullPath)
+        const params = match ? match.slice(1) : []
+
+        try {
+          const raw = method === 'GET' || method === 'DELETE' ? '' : await readBody(req)
+          const body = raw ? JSON.parse(raw) : {}
+          const result = await route.handler({ params, body })
+          res.setHeader('Content-Type', 'application/json')
+          res.statusCode = 200
+          res.end(JSON.stringify(result))
+        } catch (err) {
+          const e = err as Error & { status?: number }
+          console.error(`[api] ${method} ${fullPath} failed:`, e)
+          res.setHeader('Content-Type', 'application/json')
+          res.statusCode = e.status ?? 500
+          res.end(JSON.stringify({ error: e.message ?? 'Server error' }))
+        }
       })
     }
   }
 }
 
 export default defineConfig(({ mode }) => {
-  // Load .env (no prefix filter) and expose to server-side middleware via process.env.
   const env = loadEnv(mode, process.cwd(), '')
-  for (const key of ['OPENROUTER_API_KEY', 'OPENROUTER_MODEL']) {
+  for (const key of [
+    'OPENROUTER_API_KEY',
+    'OPENROUTER_MODEL',
+    'GEMINI_API_KEY',
+    'GEMINI_MODEL',
+    'MONGODB_URI',
+    'MONGODB_DB'
+  ]) {
     if (env[key] && !process.env[key]) process.env[key] = env[key]
   }
 

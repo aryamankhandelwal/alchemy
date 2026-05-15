@@ -1,4 +1,5 @@
-import { X } from 'lucide-react'
+import { useState } from 'react'
+import { Loader2, RefreshCw, X } from 'lucide-react'
 
 import { ChatPanel } from '@/components/ChatPanel'
 import { DecisionBadge, StageBadge } from '@/components/bet-badges'
@@ -30,10 +31,23 @@ const TABS = [
 interface BetModalProps {
   bet: Bet | null
   onClose: () => void
-  onPatch: (id: string, patch: Patch) => void
+  onPatch: (id: string, patch: Patch) => void | Promise<void>
+  onResearch?: (id: string) => Promise<Bet | null>
 }
 
-export function BetModal({ bet, onClose, onPatch }: BetModalProps) {
+export function BetModal({ bet, onClose, onPatch, onResearch }: BetModalProps) {
+  const [researching, setResearching] = useState(false)
+
+  const runResearch = async () => {
+    if (!bet || !onResearch || researching) return
+    setResearching(true)
+    try {
+      await onResearch(bet.id)
+    } finally {
+      setResearching(false)
+    }
+  }
+
   return (
     <Dialog
       open={!!bet}
@@ -46,11 +60,9 @@ export function BetModal({ bet, onClose, onPatch }: BetModalProps) {
           hideCloseButton
           className="max-w-[1200px] w-[95vw] h-[88vh] p-0 gap-0 overflow-hidden grid grid-cols-1 md:grid-cols-[1fr_400px] sm:rounded-xl"
         >
-          {/* a11y — hidden title/description for screen readers */}
           <DialogTitle className="sr-only">{bet.name}</DialogTitle>
           <DialogDescription className="sr-only">{bet.description}</DialogDescription>
 
-          {/* Left panel — bet detail */}
           <Tabs defaultValue="summary" className="relative flex flex-col min-h-0">
             <div className="bg-card px-8 pt-8 pb-0 border-b">
               <div className="flex items-start justify-between gap-4 mb-5">
@@ -61,16 +73,35 @@ export function BetModal({ bet, onClose, onPatch }: BetModalProps) {
                   </div>
                   <h2 className="text-xl text-foreground font-bold leading-tight">{bet.name}</h2>
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={onClose}
-                  aria-label="Close"
-                  className="-mt-1 -mr-1 text-muted-foreground hover:text-foreground"
-                >
-                  <X />
-                </Button>
+                <div className="flex items-center gap-1 -mt-1 -mr-1">
+                  {onResearch && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={runResearch}
+                      disabled={researching}
+                      className="text-[11px] uppercase tracking-wider2 border-primary/30 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground hover:border-primary"
+                    >
+                      {researching ? (
+                        <Loader2 className="!size-3.5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="!size-3.5" />
+                      )}
+                      <span>{researching ? 'Researching…' : 'Refresh market data'}</span>
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={onClose}
+                    aria-label="Close"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X />
+                  </Button>
+                </div>
               </div>
               <TabsList className="h-auto bg-transparent p-0 flex gap-1 -mb-px overflow-x-auto rounded-none justify-start">
                 {TABS.map((t) => (
@@ -107,7 +138,6 @@ export function BetModal({ bet, onClose, onPatch }: BetModalProps) {
             </div>
           </Tabs>
 
-          {/* Right panel — AI chat */}
           <div className="hidden md:block min-h-0">
             <ChatPanel bet={bet} onPatch={onPatch} />
           </div>

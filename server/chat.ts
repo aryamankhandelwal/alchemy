@@ -57,10 +57,13 @@ export async function chatHandler({ messages, bet }: ChatRequest): Promise<ChatR
     return object
   } catch (err) {
     const e = err as Error
-    console.error('[chatHandler] generateObject failed:', e)
+    // Some AI SDK error objects have getters that throw when util.inspect walks them,
+    // which crashes console.error. Stringify a flat shape instead.
+    const safe = { name: e?.name, message: e?.message, stack: e?.stack?.split('\n').slice(0, 3).join(' | ') }
+    console.error('[chatHandler] generateObject failed:', JSON.stringify(safe))
     return {
       patch: null,
-      reply: `AI request failed: ${e.message ?? 'unknown error'}.`
+      reply: `AI request failed: ${e?.message ?? 'unknown error'}.`
     }
   }
 }
