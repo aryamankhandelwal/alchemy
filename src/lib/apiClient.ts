@@ -34,5 +34,7 @@ export const api = {
     request<Bet>('/api/bets', { method: 'POST', body: JSON.stringify(input) }),
   patchBet: (id: string, body: PatchBody) =>
     request<Bet>(`/api/bets/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-  research: (id: string) => request<Bet>(`/api/research/${id}`, { method: 'POST' })
+  deleteBet: (id: string) => request<{ id: string }>(`/api/bets/${id}`, { method: 'DELETE' }),
+  research: (id: string) => request<Bet>(`/api/research/${id}`, { method: 'POST' }),
+  enrich: (id: string) => request<Bet>(`/api/enrich/${id}`, { method: 'POST' })
 }

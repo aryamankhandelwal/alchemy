@@ -1,4 +1,5 @@
 import { useDraggable } from '@dnd-kit/core'
+import { Trash2 } from 'lucide-react'
 
 import { Card } from '@/components/ui/card'
 import { DecisionBadge, KPIDot, ScorePill, StageBadge } from '@/components/bet-badges'
@@ -9,10 +10,11 @@ import type { Bet } from '@/types/bet'
 interface BetCardProps {
   bet: Bet
   onClick?: (id: string) => void
+  onDelete?: (id: string) => void
   isDragOverlay?: boolean
 }
 
-export function BetCard({ bet, onClick, isDragOverlay = false }: BetCardProps) {
+export function BetCard({ bet, onClick, onDelete, isDragOverlay = false }: BetCardProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: bet.id,
     data: { betId: bet.id }
@@ -38,6 +40,20 @@ export function BetCard({ bet, onClick, isDragOverlay = false }: BetCardProps) {
         !isDragOverlay && isDragging && 'opacity-30'
       )}
     >
+      {onDelete && !isDragOverlay && (
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete(bet.id)
+          }}
+          aria-label={`Delete ${bet.name}`}
+          className="absolute top-2 right-2 size-6 rounded-md text-muted-foreground/60 opacity-0 group-hover:opacity-100 hover:text-destructive hover:bg-destructive/10 transition-all flex items-center justify-center"
+        >
+          <Trash2 className="size-3.5" />
+        </button>
+      )}
       <div className="flex items-start justify-between gap-3 mb-3">
         <h3 className="font-bold text-sm text-foreground leading-snug pr-1 group-hover:text-primary transition-colors">
           {bet.name}

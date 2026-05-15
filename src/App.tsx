@@ -17,6 +17,7 @@ export default function App() {
   const [bets, setBets] = useState<Bet[] | null>(null)
   const [openBetId, setOpenBetId] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
 
   useEffect(() => {
     api
@@ -82,15 +83,64 @@ export default function App() {
   )
 
   const handleCreate = useCallback(async (formData: CreateBetInput) => {
+    setCreating(true)
     try {
-      const bet = await api.createBet(formData)
-      setBets((prev) => (prev ? [...prev, bet] : [bet]))
+      const skeleton = await api.createBet(formData)
+      setBets((prev) => (prev ? [...prev, skeleton] : [skeleton]))
+
+      // Synchronous text enrichment so the card has substance before the modal closes.
+      let enriched: Bet | null = null
+      try {
+        enriched = await api.enrich(skeleton.id)
+        setBets((prev) => (prev ? prev.map((b) => (b.id === enriched!.id ? enriched! : b)) : prev))
+      } catch (e) {
+        toast.error(`Enrichment failed: ${(e as Error).message}`)
+      }
+
       setAddOpen(false)
-      toast.success(`${bet.name} added to ${bet.stage} · ${bet.decision}`)
+      toast.success(`${skeleton.name} added to ${skeleton.stage} · ${skeleton.decision}`)
+
+      // Background market research — long-running, no need to block the modal.
+      api
+        .research(skeleton.id)
+        .then((updated) => {
+          setBets((prev) => (prev ? prev.map((b) => (b.id === updated.id ? updated : b)) : prev))
+          toast.success(`${updated.name}: market data populated`)
+        })
+        .catch((e: Error) => toast.error(`Market research failed: ${e.message}`))
     } catch (e) {
       toast.error(`Add bet failed: ${(e as Error).message}`)
+    } finally {
+      setCreating(false)
     }
   }, [])
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      const bet = bets?.find((b) => b.id === id)
+      if (!bet) return
+      if (!window.confirm(`Delete "${bet.name}"? This cannot be undone.`)) return
+      const removeFromState = () => {
+        setBets((prev) => (prev ? prev.filter((b) => b.id !== id) : prev))
+        if (openBetId === id) setOpenBetId(null)
+      }
+      try {
+        await api.deleteBet(id)
+        removeFromState()
+        toast.success(`${bet.name} deleted`)
+      } catch (e) {
+        const msg = (e as Error).message
+        // If the server says it's already gone, sync local state and move on.
+        if (/not found/i.test(msg)) {
+          removeFromState()
+          toast.success(`${bet.name} removed`)
+          return
+        }
+        toast.error(`Delete failed: ${msg}`)
+      }
+    },
+    [bets, openBetId]
+  )
 
   if (bets === null) {
     return (
@@ -108,7 +158,12 @@ export default function App() {
       <Header onAddBet={() => setAddOpen(true)} />
       <SummaryBar bets={bets} />
       <main className="flex-1">
-        <KanbanGrid bets={bets} onBetMoved={handleBetMoved} onBetClick={setOpenBetId} />
+        <KanbanGrid
+          bets={bets}
+          onBetMoved={handleBetMoved}
+          onBetClick={setOpenBetId}
+          onBetDelete={handleDelete}
+        />
       </main>
       <BetModal
         bet={openBet}
@@ -116,7 +171,12 @@ export default function App() {
         onPatch={handlePatch}
         onResearch={handleResearch}
       />
-      <AddBetModal open={addOpen} onClose={() => setAddOpen(false)} onCreate={handleCreate} />
+      <AddBetModal
+        open={addOpen}
+        loading={creating}
+        onClose={() => setAddOpen(false)}
+        onCreate={handleCreate}
+      />
       <Toaster />
     </div>
   )

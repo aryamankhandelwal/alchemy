@@ -6,9 +6,11 @@ import react from '@vitejs/plugin-react'
 import { chatHandler } from './server/chat'
 import {
   createBetHandler,
+  deleteBetHandler,
   getBet,
   listBets,
   patchBetHandler,
+  runEnrichHandler,
   runResearchHandler
 } from './server/routes/bets'
 
@@ -41,6 +43,16 @@ const routes: Route[] = [
     method: 'POST',
     pattern: /^\/api\/research\/([^/]+)$/,
     handler: ({ params }) => runResearchHandler(params[0])
+  },
+  {
+    method: 'POST',
+    pattern: /^\/api\/enrich\/([^/]+)$/,
+    handler: ({ params }) => runEnrichHandler(params[0])
+  },
+  {
+    method: 'DELETE',
+    pattern: /^\/api\/bets\/([^/]+)$/,
+    handler: ({ params }) => deleteBetHandler(params[0])
   },
   {
     method: 'POST',
@@ -83,10 +95,13 @@ function apiPlugin(): Plugin {
           res.end(JSON.stringify(result))
         } catch (err) {
           const e = err as Error & { status?: number }
-          console.error(`[api] ${method} ${fullPath} failed:`, e)
+          // util.inspect crashes on some AI SDK error objects with custom getters,
+          // which would otherwise take Node down. Stringify a flat shape instead.
+          const safe = { name: e?.name, message: e?.message, stack: e?.stack?.split('\n').slice(0, 3).join(' | ') }
+          console.error(`[api] ${method} ${fullPath} failed:`, JSON.stringify(safe))
           res.setHeader('Content-Type', 'application/json')
-          res.statusCode = e.status ?? 500
-          res.end(JSON.stringify({ error: e.message ?? 'Server error' }))
+          res.statusCode = e?.status ?? 500
+          res.end(JSON.stringify({ error: e?.message ?? 'Server error' }))
         }
       })
     }

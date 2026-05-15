@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Loader2, Plus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -25,6 +25,7 @@ import { DECISIONS, STAGES } from '@/lib/stages'
 
 interface AddBetModalProps {
   open: boolean
+  loading?: boolean
   onClose: () => void
   onCreate: (input: CreateBetInput) => void
 }
@@ -36,7 +37,7 @@ const INITIAL: CreateBetInput = {
   decision: 'Proceed'
 }
 
-export function AddBetModal({ open, onClose, onCreate }: AddBetModalProps) {
+export function AddBetModal({ open, loading = false, onClose, onCreate }: AddBetModalProps) {
   const [form, setForm] = useState<CreateBetInput>(INITIAL)
   const [submitted, setSubmitted] = useState(false)
 
@@ -51,12 +52,12 @@ export function AddBetModal({ open, onClose, onCreate }: AddBetModalProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitted(true)
-    if (!valid) return
+    if (!valid || loading) return
     onCreate(form)
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && !loading && onClose()}>
       <DialogContent className="max-w-[520px] p-0 gap-0 overflow-hidden sm:rounded-xl">
         <form onSubmit={handleSubmit}>
           <DialogHeader className="px-7 pt-7 pb-4 border-b text-left space-y-1.5">
@@ -138,11 +139,17 @@ export function AddBetModal({ open, onClose, onCreate }: AddBetModalProps) {
           </div>
 
           <DialogFooter className="flex-row items-center justify-end gap-2 px-7 py-4 border-t bg-popover/30">
+            {loading && (
+              <span className="mr-auto text-[11px] text-muted-foreground">
+                AI is filling in summary, hypothesis, target customer, and KPIs…
+              </span>
+            )}
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={onClose}
+              disabled={loading}
               className="text-xs uppercase tracking-wider2 text-muted-foreground hover:text-foreground"
             >
               Cancel
@@ -150,11 +157,11 @@ export function AddBetModal({ open, onClose, onCreate }: AddBetModalProps) {
             <Button
               type="submit"
               size="sm"
-              disabled={!valid}
+              disabled={!valid || loading}
               className="text-xs uppercase tracking-wider2"
             >
-              <Plus className="!size-3.5" />
-              Create bet
+              {loading ? <Loader2 className="!size-3.5 animate-spin" /> : <Plus className="!size-3.5" />}
+              {loading ? 'Enriching…' : 'Create bet'}
             </Button>
           </DialogFooter>
         </form>

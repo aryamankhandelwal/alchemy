@@ -4,6 +4,7 @@
 
 import { applyPatch } from '../../src/lib/applyPatch'
 import { createBet, type CreateBetInput } from '../../src/lib/createBet'
+import { enrichBet } from '../enrich'
 import { appendHistory, diffPatch, makeHistoryEntry } from '../../src/lib/history'
 import type { Bet, HistorySource, Patch } from '../../src/types/bet'
 import { getBetsCollection } from '../db'
@@ -72,4 +73,23 @@ export async function runResearchHandler(id: string): Promise<Bet> {
 
   const patch = await researchMarket(bet)
   return patchBetHandler(id, { patch, source: 'ai', note: 'Market research refresh' })
+}
+
+export async function runEnrichHandler(id: string): Promise<Bet> {
+  const col = await getBetsCollection()
+  const doc = await col.findOne({ id })
+  if (!doc) throw Object.assign(new Error(`bet ${id} not found`), { status: 404 })
+  const bet = stripId(doc) as Bet
+
+  const patch = await enrichBet(bet)
+  return patchBetHandler(id, { patch, source: 'ai', note: 'Initial AI enrichment' })
+}
+
+export async function deleteBetHandler(id: string): Promise<{ id: string }> {
+  const col = await getBetsCollection()
+  const result = await col.deleteOne({ id })
+  if (result.deletedCount === 0) {
+    throw Object.assign(new Error(`bet ${id} not found`), { status: 404 })
+  }
+  return { id }
 }
