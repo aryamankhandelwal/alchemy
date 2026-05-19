@@ -36,7 +36,7 @@ Sections most prone to drift: **Tech stack**, **File structure**, **KPI framewor
 | Drag & drop | `@dnd-kit/core` |
 | Toasts | `sonner` (mounted at `App.tsx` root, called via `toast.success(...)`) |
 | Font | Helvetica / Helvetica Neue (system) |
-| LLM | Vercel AI SDK (`ai`) + `@openrouter/ai-sdk-provider` |
+| LLM | Google Gemini via `@google/genai` (same provider for `/api/chat`, `/api/enrich`, and `/api/research`) |
 | Schema | Zod for the AI's structured output |
 | State | React `useState` in `App.tsx` (single `bets` array, no global store) |
 
@@ -48,15 +48,15 @@ Path alias: `@/*` → `src/*` (configured in `tsconfig.json` and `vite.config.ts
 
 ```bash
 npm install
-cp .env.example .env       # then fill in OPENROUTER_API_KEY
+cp .env.example .env       # then fill in GEMINI_API_KEY (and MONGODB_URI)
 npm run dev                # → http://localhost:5173
 npm run build              # tsc -b && vite build
 npm run typecheck          # tsc -b --noEmit
 ```
 
-The AI chat works **only** if `OPENROUTER_API_KEY` is set. Without a key, the chat replies with a setup hint but the rest of the app (drag-and-drop, modals, KPI tracking, adding bets) works fully.
+The AI chat works **only** if `GEMINI_API_KEY` is set. Without a key, the chat replies with a setup hint but the rest of the app (drag-and-drop, modals, KPI tracking, adding bets) works fully.
 
-To switch models, set `OPENROUTER_MODEL` in `.env` to any OpenRouter slug (`anthropic/claude-sonnet-4.5`, `openai/gpt-4o`, `google/gemini-2.5-flash`, etc.). No code changes needed.
+To switch models, set `GEMINI_MODEL` in `.env` to any Gemini slug (`gemini-2.5-flash`, `gemini-2.5-pro`, etc.). No code changes needed.
 
 ---
 
@@ -153,13 +153,14 @@ The chat is the primary way to update a bet. Round-trip:
 
 1. User types in `ChatPanel.tsx` — Enter sends, Shift+Enter newlines.
 2. The frontend POSTs `{ messages, bet }` to `/api/chat`.
-3. The server (`server/chat.ts`) calls `generateObject` from the Vercel AI SDK with a Zod schema:
+3. The server (`server/chat.ts`) calls Gemini (`@google/genai`) with `responseMimeType: 'application/json'` and validates the result with Zod:
    ```ts
    {
      patch: Record<string, unknown> | null,   // dot-paths → new values
      reply: string                             // 1–2 sentence confirmation
    }
    ```
+   The patch shape is open-ended (any dot-path), so we instruct via system prompt rather than a rigid response schema.
 4. The system prompt (`src/lib/systemPrompt.ts`) is assembled from:
    - The New Horizons framework primer (stages, decision logic).
    - The full per-stage KPI thresholds, programmatically rendered from `kpiSchema.ts` so they never drift from the source of truth.
@@ -195,9 +196,9 @@ Every patch is diffed against the previous bet by `history.ts` and appended to `
 
 ### Extending the AI
 
-- **Different model**: change `OPENROUTER_MODEL` env var. No code changes.
-- **Different provider**: swap `@openrouter/ai-sdk-provider` for `@ai-sdk/anthropic`, `@ai-sdk/openai`, etc. — Vercel AI SDK is provider-agnostic. Update `server/chat.ts` (4 lines).
-- **Richer patches**: extend the schema in `server/chat.ts` and the applier in `src/lib/applyPatch.ts`. Add types in `src/types/bet.ts` if new fields appear.
+- **Different model**: change `GEMINI_MODEL` env var. No code changes.
+- **Different provider**: swap `@google/genai` for another SDK (`@anthropic-ai/sdk`, `openai`, Vercel AI SDK, etc.) in `server/chat.ts` — the shape returned by `chatHandler` is what matters, the provider is an implementation detail. Same applies to `server/enrich.ts` and `server/research.ts`.
+- **Richer patches**: extend the Zod schema in `server/chat.ts` and the applier in `src/lib/applyPatch.ts`. Add types in `src/types/bet.ts` if new fields appear.
 
 ---
 
