@@ -11,7 +11,7 @@ import { getKpiDefs } from '../src/lib/kpiSchema'
 import type { Bet, Patch } from '../src/types/bet'
 
 const EnrichmentSchema = z.object({
-  aiSummary: z.string(),
+  description: z.string(),
   nullHypothesis: z.string(),
   targetCustomer: z.string(),
   kpis: z.record(z.union([z.string(), z.number()])),
@@ -25,15 +25,20 @@ const EnrichmentSchema = z.object({
       })
     )
     .min(3)
-    .max(5)
+    .max(5),
+  aiSummary: z.string()
 })
 
 function buildResponseSchema(kpiKeys: string[]) {
   return {
     type: 'object',
-    required: ['aiSummary', 'nullHypothesis', 'targetCustomer', 'kpis', 'risks'],
+    required: ['description', 'nullHypothesis', 'targetCustomer', 'kpis', 'risks', 'aiSummary'],
     properties: {
-      aiSummary: { type: 'string', description: 'Tight 2-3 sentence read on the opportunity.' },
+      description: {
+        type: 'string',
+        description:
+          '2-3 short sentences, max 50 words total. A factual one-liner of what the product is, who it serves, and how it makes money. No analysis or opinion.'
+      },
       nullHypothesis: { type: 'string', description: 'One falsifiable assumption — "this fails if …".' },
       targetCustomer: { type: 'string', description: 'Specific segment/persona, not a generic label.' },
       kpis: {
@@ -57,6 +62,11 @@ function buildResponseSchema(kpiKeys: string[]) {
             mitigation: { type: 'string' }
           }
         }
+      },
+      aiSummary: {
+        type: 'string',
+        description:
+          'Synthesis of the bet. 3-4 short sentences (50-70 words), then a final line containing exactly: "Recommendation: <Kill|Proceed|Prioritise>". Reads the description, KPIs, and risks above and explains the call.'
       }
     }
   }
@@ -96,15 +106,22 @@ export async function enrichBet(bet: Bet): Promise<Patch> {
     `Name: ${bet.name}\n` +
     `Description: ${bet.description}\n` +
     `Stage: ${bet.stage} · Decision: ${bet.decision}\n\n` +
-    `Fields:\n` +
-    `- aiSummary: exactly 2-3 short sentences. Punchy. No fluff.\n` +
+    `Fields (generate IN THIS ORDER — aiSummary depends on the rest):\n` +
+    `- description: 2-3 short sentences, MAX 50 words. Factual rewrite of what the user pasted — what the product is, ` +
+    `who it serves, how it monetises. No analysis or opinion (that goes in aiSummary). The user's input may be a wall of text; ` +
+    `your job is to compress it.\n` +
     `- nullHypothesis: one falsifiable assumption — "this fails if …"\n` +
     `- targetCustomer: specific segment/persona\n` +
     `- risks: 3-5 plausible risks. Vary across categories (Regulatory, Operational, Credit, Market). ` +
     `Each needs name, category, severity, and a concrete mitigation.\n` +
     `- kpis: object keyed by these KPI IDs with reasonable stage-${bet.stage} starting values. ` +
     `For each, the VALUE format is explicit below — follow it exactly. The "reference bands" are ` +
-    `for context only; never copy the band text into the value:\n${kpiList}\n\n` +
+    `for context only; never copy the band text into the value:\n${kpiList}\n` +
+    `- aiSummary: a synthesis of everything you just wrote above. 3-4 short sentences (50-70 words total) ` +
+    `covering the opportunity, the read on the KPIs you set against the stage-${bet.stage} thresholds, and ` +
+    `the dominant risks. Then on a final new line write EXACTLY: "Recommendation: X" where X is one of ` +
+    `Kill, Proceed, or Prioritise. Choose based on whether the KPIs you wrote sit mostly in kill / proceed / ` +
+    `prioritise bands and whether risks are showstoppers. Decisive — no hedging.\n\n` +
     `Do not omit any field.`
 
   const struct = await ai.models.generateContent({
@@ -128,10 +145,11 @@ export async function enrichBet(bet: Bet): Promise<Patch> {
   const data = EnrichmentSchema.parse(parsed)
 
   const patch: Patch = {
-    aiSummary: data.aiSummary,
+    description: data.description,
     nullHypothesis: data.nullHypothesis,
     targetCustomer: data.targetCustomer,
-    risks: data.risks
+    risks: data.risks,
+    aiSummary: data.aiSummary
   }
   for (const [k, v] of Object.entries(data.kpis)) {
     if (defs[k]) patch[`kpis.${k}`] = v
