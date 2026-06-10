@@ -22,6 +22,10 @@ export function Header({ view, onViewChange, onAddBet }: HeaderProps) {
       <div className="flex items-center gap-2">
         <span className="text-primary text-lg leading-none">⬡</span>
         <span className="text-primary text-sm tracking-wider2">Alchemy</span>
+        <span className="text-muted-foreground/60 text-sm mx-1">·</span>
+        <span className="text-muted-foreground text-xs">
+          {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+        </span>
       </div>
       <div className="flex items-center gap-3">
         <div className="flex items-center rounded-md border bg-card p-0.5">
