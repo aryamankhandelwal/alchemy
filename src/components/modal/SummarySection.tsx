@@ -1,8 +1,15 @@
 import { useState } from 'react'
-import { CalendarRange, Loader2, RefreshCw, Sparkles } from 'lucide-react'
+import { Brain, CalendarRange, Loader2, RefreshCw, Sparkles } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { DecisionBadge, StageBadge, scoreTone } from '@/components/bet-badges'
 import { STAGES } from '@/lib/stages'
@@ -28,6 +35,7 @@ interface SummarySectionProps {
 
 export function SummarySection({ bet, onPatch, onScore }: SummarySectionProps) {
   const [scoring, setScoring] = useState(false)
+  const [rationaleOpen, setRationaleOpen] = useState(false)
 
   const runScore = async () => {
     if (!onScore || scoring) return
@@ -62,12 +70,22 @@ export function SummarySection({ bet, onPatch, onScore }: SummarySectionProps) {
             {bet.score == null ? (
               <span className="text-2xl text-muted-foreground/60 font-bold leading-none">—</span>
             ) : (
-              <>
-                <span className={cn('text-2xl font-bold leading-none', scoreTone(bet.score))}>
+              <button
+                type="button"
+                onClick={() => setRationaleOpen(true)}
+                title="See how the AI arrived at this score"
+                className="group flex items-baseline"
+              >
+                <span
+                  className={cn(
+                    'text-2xl font-bold leading-none underline-offset-4 group-hover:underline',
+                    scoreTone(bet.score)
+                  )}
+                >
                   {bet.score}
                 </span>
                 <span className="text-muted-foreground text-sm ml-1">/ 100</span>
-              </>
+              </button>
             )}
             {onScore && (
               <Button
@@ -150,6 +168,41 @@ export function SummarySection({ bet, onPatch, onScore }: SummarySectionProps) {
           })}
         </div>
       </div>
+
+      <Dialog open={rationaleOpen} onOpenChange={setRationaleOpen}>
+        <DialogContent className="max-w-[480px] p-0 gap-0 overflow-hidden sm:rounded-xl">
+          <DialogHeader className="px-7 pt-7 pb-4 border-b text-left space-y-1.5">
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider2 text-primary">
+              <Brain className="size-3" />
+              <span>Score reasoning</span>
+            </div>
+            <DialogTitle className="text-lg text-foreground font-bold">
+              {bet.score == null ? '—' : (
+                <>
+                  <span className={cn(scoreTone(bet.score))}>{bet.score}</span>
+                  <span className="text-muted-foreground text-sm font-normal ml-1">/ 100</span>
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription className="text-xs leading-relaxed">
+              How the AI weighed {bet.name} at its current stage ({bet.stage}).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="px-7 py-6 max-h-[60vh] overflow-y-auto">
+            {bet.scoreRationale ? (
+              <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
+                {bet.scoreRationale}
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                No reasoning stored for this score yet — it predates score explanations. Hit the
+                refresh icon next to the score to re-score the bet; the AI's working will appear
+                here.
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

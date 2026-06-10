@@ -98,11 +98,11 @@ export async function runScoreHandler(id: string): Promise<Bet> {
     .find({ betId: id }, { projection: { _id: 0, name: 1, type: 1, size: 1 } })
     .toArray()) as unknown as ArtifactMeta[]
 
-  const { score, rationale } = await scoreBet(bet, artifacts)
+  const { score, rationale, aiSummary } = await scoreBet(bet, artifacts)
   return patchBetHandler(id, {
-    patch: { score },
+    patch: { score, scoreRationale: rationale, aiSummary },
     source: 'ai',
-    note: `Score refresh: ${rationale}`
+    note: 'Score refresh'
   })
 }
 

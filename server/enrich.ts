@@ -9,6 +9,7 @@ import { z } from 'zod'
 
 import { getKpiDefs } from '../src/lib/kpiSchema'
 import type { Bet, Patch } from '../src/types/bet'
+import { envVar } from './env'
 
 const EnrichmentSchema = z.object({
   description: z.string(),
@@ -73,9 +74,9 @@ function buildResponseSchema(kpiKeys: string[]) {
 }
 
 export async function enrichBet(bet: Bet): Promise<Patch> {
-  const apiKey = process.env.GEMINI_API_KEY
+  const apiKey = envVar('GEMINI_API_KEY')
   if (!apiKey) throw new Error('GEMINI_API_KEY is not set.')
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+  const model = envVar('GEMINI_MODEL') || 'gemini-2.5-flash'
 
   const ai = new GoogleGenAI({ apiKey })
 

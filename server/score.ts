@@ -7,6 +7,7 @@ import { z } from 'zod'
 
 import { getKpiDefs } from '../src/lib/kpiSchema'
 import type { Bet } from '../src/types/bet'
+import { envVar } from './env'
 
 const ScoreSchema = z.object({
   score: z.number().min(0).max(100),
@@ -27,9 +28,9 @@ export interface ScoreResult {
 }
 
 export async function scoreBet(bet: Bet, artifacts: ArtifactMeta[]): Promise<ScoreResult> {
-  const apiKey = process.env.GEMINI_API_KEY
+  const apiKey = envVar('GEMINI_API_KEY')
   if (!apiKey) throw new Error('GEMINI_API_KEY is not set.')
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+  const model = envVar('GEMINI_MODEL') || 'gemini-2.5-flash'
   const ai = new GoogleGenAI({ apiKey })
 
   const defs = getKpiDefs(bet.stage)

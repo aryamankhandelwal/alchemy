@@ -8,6 +8,7 @@ import { z } from 'zod'
 
 import { buildSystemPrompt } from '../src/lib/systemPrompt'
 import type { Bet } from '../src/types/bet'
+import { envVar } from './env'
 
 const PatchResponse = z.object({
   patch: z.record(z.any()).nullable(),
@@ -25,12 +26,11 @@ export interface ChatResponse {
 }
 
 export async function chatHandler({ messages, bet }: ChatRequest): Promise<ChatResponse> {
-  const apiKey = process.env.GEMINI_API_KEY
+  const apiKey = envVar('GEMINI_API_KEY')
   if (!apiKey) {
     return {
       patch: null,
-      reply:
-        'No GEMINI_API_KEY configured. Add it to .env and restart `npm run dev` to enable AI updates.'
+      reply: 'No GEMINI_API_KEY configured. Add it to .env to enable AI updates.'
     }
   }
 
@@ -38,7 +38,7 @@ export async function chatHandler({ messages, bet }: ChatRequest): Promise<ChatR
     return { patch: null, reply: 'Bad request — missing messages or bet.' }
   }
 
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+  const model = envVar('GEMINI_MODEL') || 'gemini-2.5-flash'
   const ai = new GoogleGenAI({ apiKey })
 
   const contents = messages.map((m) => ({

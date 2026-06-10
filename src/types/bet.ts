@@ -72,6 +72,8 @@ export interface Bet {
   stage: Stage
   decision: Decision
   score: number | null
+  /** AI's bullet-point working from the last score refresh. */
+  scoreRationale?: string
   nullHypothesis: string
   targetCustomer: string
   aiSummary: string

@@ -38,7 +38,7 @@ function Message({ message }: { message: ChatMessage }) {
     <div className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
       <div
         className={cn(
-          'max-w-[88%] text-xs leading-relaxed rounded-lg px-3.5 py-2.5 border',
+          'max-w-[88%] min-w-0 break-words text-xs leading-relaxed rounded-lg px-3.5 py-2.5 border',
           isUser ? 'bg-primary/10 text-foreground border-primary/20' : 'bg-popover text-foreground'
         )}
       >
@@ -152,7 +152,7 @@ export function ChatPanel({ bet, onPatch }: ChatPanelProps) {
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-5 space-y-3 min-h-0">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-5 space-y-3 min-h-0">
         {messages.length === 0 && (
           <div className="text-[11px] text-muted-foreground/70 space-y-1.5">
             <div className="text-muted-foreground mb-2">Try one of these:</div>

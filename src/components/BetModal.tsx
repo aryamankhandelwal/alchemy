@@ -62,12 +62,12 @@ export function BetModal({ bet, onClose, onPatch, onResearch, onScore, onDelete 
       {bet && (
         <DialogContent
           hideCloseButton
-          className="max-w-[1200px] w-[95vw] h-[88vh] p-0 gap-0 overflow-hidden grid grid-cols-1 md:grid-cols-[1fr_400px] sm:rounded-xl"
+          className="max-w-[1200px] w-[95vw] h-[88vh] p-0 gap-0 overflow-hidden grid grid-cols-1 grid-rows-[100%] md:grid-cols-[1fr_400px] sm:rounded-xl"
         >
           <DialogTitle className="sr-only">{bet.name}</DialogTitle>
           <DialogDescription className="sr-only">{bet.description}</DialogDescription>
 
-          <Tabs defaultValue="summary" className="relative flex flex-col min-h-0">
+          <Tabs defaultValue="summary" className="relative flex flex-col min-h-0 min-w-0">
             <div className="bg-card px-8 pt-8 pb-0 border-b">
               <div className="flex items-start justify-between gap-4 mb-5">
                 <div>
@@ -157,7 +157,7 @@ export function BetModal({ bet, onClose, onPatch, onResearch, onScore, onDelete 
             </div>
           </Tabs>
 
-          <div className="hidden md:block min-h-0">
+          <div className="hidden md:block min-h-0 min-w-0 overflow-hidden">
             <ChatPanel bet={bet} onPatch={onPatch} />
           </div>
         </DialogContent>

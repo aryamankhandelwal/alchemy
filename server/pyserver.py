@@ -59,8 +59,21 @@ def load_env():
     return env
 
 ENV = load_env()
-GEMINI_KEY = ENV.get("GEMINI_API_KEY")
-GEMINI_MODEL = ENV.get("GEMINI_MODEL", "gemini-2.5-flash")
+
+# .env is re-read whenever its mtime changes, so e.g. switching GEMINI_MODEL
+# takes effect on the next request without restarting the server.
+_env_state = {"mtime": None, "data": ENV}
+
+def env(key, default=None):
+    path = os.path.join(ROOT, ".env")
+    try:
+        mtime = os.path.getmtime(path)
+        if mtime != _env_state["mtime"]:
+            _env_state["data"] = load_env()
+            _env_state["mtime"] = mtime
+    except OSError:
+        pass
+    return _env_state["data"].get(key, default)
 
 # ---------------------------------------------------------------- mongo
 client = MongoClient(ENV["MONGODB_URI"], serverSelectionTimeoutMS=20000)
@@ -342,7 +355,9 @@ def _uppercase_types(schema):
 
 def gemini_generate(contents, system_instruction=None, response_mime_type=None,
                     response_schema=None, tools=None, temperature=None, max_output_tokens=None):
-    if not GEMINI_KEY:
+    api_key = env("GEMINI_API_KEY")
+    model = env("GEMINI_MODEL", "gemini-2.5-flash")
+    if not api_key:
         raise RuntimeError("GEMINI_API_KEY is not set.")
     body = {"contents": contents}
     if system_instruction:
@@ -361,7 +376,7 @@ def gemini_generate(contents, system_instruction=None, response_mime_type=None,
     if tools:
         body["tools"] = tools
 
-    url = f"{GEMINI_BASE}/{GEMINI_MODEL}:generateContent?key={GEMINI_KEY}"
+    url = f"{GEMINI_BASE}/{model}:generateContent?key={api_key}"
     # Gemini free tier throws transient 503/429 under load — retry with backoff.
     last_err = None
     for attempt in range(4):
@@ -397,7 +412,7 @@ def norm_contents(messages):
 def chat_handler(body):
     messages = body.get("messages")
     bet = body.get("bet")
-    if not GEMINI_KEY:
+    if not env("GEMINI_API_KEY"):
         return {"patch": None, "reply": "No GEMINI_API_KEY configured. Add it to .env."}
     if not isinstance(messages, list) or not bet:
         return {"patch": None, "reply": "Bad request — missing messages or bet."}
@@ -625,31 +640,44 @@ def score_bet(bet, artifacts):
         f"Stage-{stage} KPI thresholds:\n{kpi_list}\n\n"
         f"The bet (full JSON):\n{json.dumps(bet_slim, indent=2)}\n\n"
         f"Attached artifacts:\n{art_list}\n\n"
-        'Return JSON only: {"score": <integer 0-100>, "rationale": "<1-2 sentences explaining the score>"}'
+        "Return JSON only with these fields:\n"
+        "- score: integer 0-100.\n"
+        '- rationale: your working, as 3-5 short bullet lines (each starting with "- ", separated by \\n). '
+        "One bullet per factor you weighed: KPI read vs thresholds, risks, market, evidence discipline. "
+        "Name the specific KPIs/risks that moved the score.\n"
+        "- aiSummary: a rewrite of the bet's aiSummary that is CONSISTENT with this score. 3-4 short "
+        "sentences (50-70 words) synthesising the bet, then a final new line with EXACTLY "
+        '"Recommendation: X" where X is Kill, Proceed, or Prioritise — aligned with the score '
+        "(below ~40 leans Kill, ~40-75 Proceed, above ~75 Prioritise). The summary and the score "
+        "must never contradict each other."
     )
     raw = gemini_generate(
         [{"role": "user", "parts": [{"text": prompt}]}],
         response_mime_type="application/json",
         response_schema={
             "type": "object",
-            "required": ["score", "rationale"],
-            "properties": {"score": {"type": "integer"}, "rationale": {"type": "string"}},
+            "required": ["score", "rationale", "aiSummary"],
+            "properties": {
+                "score": {"type": "integer"},
+                "rationale": {"type": "string"},
+                "aiSummary": {"type": "string"},
+            },
         },
     )
     data = json.loads(raw)
     score = max(0, min(100, int(round(float(data["score"])))))
-    return score, str(data.get("rationale", ""))
+    return score, str(data.get("rationale", "")), str(data.get("aiSummary", ""))
 
 def run_score_handler(bet_id):
     bet = get_bet(bet_id)
     if not bet:
         raise HttpError(404, f"bet {bet_id} not found")
     artifacts = list_artifacts_handler(bet_id)
-    score, rationale = score_bet(bet, artifacts)
+    score, rationale, ai_summary = score_bet(bet, artifacts)
     return patch_bet_handler(bet_id, {
-        "patch": {"score": score},
+        "patch": {"score": score, "scoreRationale": rationale, "aiSummary": ai_summary},
         "source": "ai",
-        "note": f"Score refresh: {rationale}",
+        "note": "Score refresh",
     })
 
 # ---------------------------------------------------------------- artifacts

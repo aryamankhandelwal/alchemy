@@ -9,6 +9,7 @@ import { GoogleGenAI } from '@google/genai'
 import { z } from 'zod'
 
 import type { Bet, Patch } from '../src/types/bet'
+import { envVar } from './env'
 
 const MarketDataSchema = z.object({
   tam: z.string(),
@@ -101,9 +102,9 @@ const RESPONSE_SCHEMA = {
 } as const
 
 export async function researchMarket(bet: Bet): Promise<Patch> {
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) throw new Error('GEMINI_API_KEY is not set. Add it to .env and restart `npm run dev`.')
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+  const apiKey = envVar('GEMINI_API_KEY')
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not set. Add it to .env.')
+  const model = envVar('GEMINI_MODEL') || 'gemini-2.5-flash'
 
   const ai = new GoogleGenAI({ apiKey })
 

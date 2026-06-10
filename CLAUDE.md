@@ -56,7 +56,7 @@ npm run typecheck          # tsc -b --noEmit
 
 The AI chat works **only** if `GEMINI_API_KEY` is set. Without a key, the chat replies with a setup hint but the rest of the app (drag-and-drop, modals, KPI tracking, adding bets) works fully.
 
-To switch models, set `GEMINI_MODEL` in `.env` to any Gemini slug (`gemini-2.5-flash`, `gemini-2.5-pro`, etc.). No code changes needed.
+To switch models, set `GEMINI_MODEL` in `.env` to any Gemini slug (`gemini-2.5-flash`, `gemini-2.5-pro`, etc.). No code changes or server restart needed — both servers re-read `.env` when it changes (`server/env.ts` / `env()` in pyserver), so the new model applies on the next AI request.
 
 ### If `npm run dev` won't start (agent sessions): use pyserver
 
@@ -94,6 +94,7 @@ Alchemy/
 ├── .env.example
 ├── server/
 │   ├── chat.ts                     /api/chat handler (Vercel AI SDK)
+│   ├── env.ts                      hot-reloading .env reader (model/key changes apply without restart)
 │   ├── score.ts                    /api/score/:id — AI re-scores a bet from its full state
 │   └── pyserver.py                 no-node fallback server (see "Run" section)
 └── src/
