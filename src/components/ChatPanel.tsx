@@ -1,10 +1,30 @@
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, Send, Sparkles } from 'lucide-react'
+import { Loader2, Send } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import type { Bet, Patch } from '@/types/bet'
+
+/** lucide has no wizard hat — hand-drawn in its 24×24 stroke style */
+function WizardHat({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M3 19h18" />
+      <path d="M6.5 19 11 6.5c.3-.9 1.6-1 2 0L17.5 19" />
+      <path d="M9.5 13.5h5" />
+    </svg>
+  )
+}
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -124,8 +144,8 @@ export function ChatPanel({ bet, onPatch }: ChatPanelProps) {
     <div className="flex flex-col h-full bg-background border-l min-h-0">
       <div className="px-6 py-5 border-b shrink-0">
         <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider2 text-primary">
-          <Sparkles className="size-3" />
-          <span>AI co-pilot</span>
+          <WizardHat className="size-3" />
+          <span>Alchemist</span>
         </div>
         <div className="text-xs text-muted-foreground mt-1.5">
           Update fields, ask about thresholds, log risks.

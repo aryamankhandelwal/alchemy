@@ -10,7 +10,8 @@ import type { Bet } from '../src/types/bet'
 
 const ScoreSchema = z.object({
   score: z.number().min(0).max(100),
-  rationale: z.string()
+  rationale: z.string(),
+  aiSummary: z.string()
 })
 
 export interface ArtifactMeta {
@@ -22,6 +23,7 @@ export interface ArtifactMeta {
 export interface ScoreResult {
   score: number
   rationale: string
+  aiSummary: string
 }
 
 export async function scoreBet(bet: Bet, artifacts: ArtifactMeta[]): Promise<ScoreResult> {
@@ -55,7 +57,16 @@ export async function scoreBet(bet: Bet, artifacts: ArtifactMeta[]): Promise<Sco
     `Stage-${bet.stage} KPI thresholds:\n${kpiList}\n\n` +
     `The bet (full JSON):\n${JSON.stringify(betSansHistory, null, 2)}\n\n` +
     `Attached artifacts:\n${artifactList}\n\n` +
-    `Return JSON only: {"score": <integer 0-100>, "rationale": "<1-2 sentences explaining the score>"}`
+    `Return JSON only with these fields:\n` +
+    `- score: integer 0-100.\n` +
+    `- rationale: your working, as 3-5 short bullet lines (each starting with "- ", separated by \\n). ` +
+    `One bullet per factor you weighed: KPI read vs thresholds, risks, market, evidence discipline. ` +
+    `Name the specific KPIs/risks that moved the score.\n` +
+    `- aiSummary: a rewrite of the bet's aiSummary that is CONSISTENT with this score. 3-4 short ` +
+    `sentences (50-70 words) synthesising the bet, then a final new line with EXACTLY ` +
+    `"Recommendation: X" where X is Kill, Proceed, or Prioritise — aligned with the score ` +
+    `(below ~40 leans Kill, ~40-75 Proceed, above ~75 Prioritise). The summary and the score ` +
+    `must never contradict each other.`
 
   const result = await ai.models.generateContent({
     model,
@@ -64,10 +75,11 @@ export async function scoreBet(bet: Bet, artifacts: ArtifactMeta[]): Promise<Sco
       responseMimeType: 'application/json',
       responseSchema: {
         type: 'object',
-        required: ['score', 'rationale'],
+        required: ['score', 'rationale', 'aiSummary'],
         properties: {
           score: { type: 'integer' },
-          rationale: { type: 'string' }
+          rationale: { type: 'string' },
+          aiSummary: { type: 'string' }
         }
       } as any
     }
@@ -81,5 +93,5 @@ export async function scoreBet(bet: Bet, artifacts: ArtifactMeta[]): Promise<Sco
     throw new Error(`Gemini returned non-JSON output: ${raw.slice(0, 200)}`)
   }
   const data = ScoreSchema.parse(parsed)
-  return { score: Math.round(data.score), rationale: data.rationale }
+  return { score: Math.round(data.score), rationale: data.rationale, aiSummary: data.aiSummary }
 }
