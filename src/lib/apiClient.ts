@@ -2,7 +2,7 @@
 // callers can `try/catch` and surface errors via toast.
 
 import type { CreateBetInput } from '@/lib/createBet'
-import type { Bet, HistorySource, Patch } from '@/types/bet'
+import type { Artifact, Bet, HistorySource, Patch } from '@/types/bet'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -36,5 +36,16 @@ export const api = {
     request<Bet>(`/api/bets/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteBet: (id: string) => request<{ id: string }>(`/api/bets/${id}`, { method: 'DELETE' }),
   research: (id: string) => request<Bet>(`/api/research/${id}`, { method: 'POST' }),
-  enrich: (id: string) => request<Bet>(`/api/enrich/${id}`, { method: 'POST' })
+  enrich: (id: string) => request<Bet>(`/api/enrich/${id}`, { method: 'POST' }),
+  listArtifacts: (betId: string) => request<Artifact[]>(`/api/bets/${betId}/artifacts`),
+  uploadArtifact: (betId: string, file: { name: string; type: string; data: string }) =>
+    request<Artifact>(`/api/bets/${betId}/artifacts`, {
+      method: 'POST',
+      body: JSON.stringify(file)
+    }),
+  deleteArtifact: (id: string) =>
+    request<{ id: string }>(`/api/artifacts/${id}`, { method: 'DELETE' })
 }
+
+/** URL that streams the artifact inline — open in a new tab to view/download. */
+export const artifactFileUrl = (id: string) => `/api/artifacts/${id}/file`

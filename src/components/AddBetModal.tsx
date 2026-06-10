@@ -22,6 +22,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import type { CreateBetInput } from '@/lib/createBet'
 import { DECISIONS, STAGES } from '@/lib/stages'
+import type { Stage, Timeline } from '@/types/bet'
 
 interface AddBetModalProps {
   open: boolean
@@ -37,23 +38,59 @@ const INITIAL: CreateBetInput = {
   decision: 'Proceed'
 }
 
+/** form-side dates: '' instead of null so <input type="date"> stays controlled */
+type FormTimeline = Record<Stage, { start: string; end: string }>
+
+const initialTimeline = (): FormTimeline => ({
+  Evaluation: { start: new Date().toISOString().slice(0, 10), end: '' },
+  Pilot: { start: '', end: '' },
+  Scale: { start: '', end: '' }
+})
+
+/** end of one phase autofills the start of the next (unless the user already set it) */
+const NEXT_STAGE: Partial<Record<Stage, Stage>> = { Evaluation: 'Pilot', Pilot: 'Scale' }
+
 export function AddBetModal({ open, loading = false, onClose, onCreate }: AddBetModalProps) {
   const [form, setForm] = useState<CreateBetInput>(INITIAL)
+  const [timeline, setTimeline] = useState<FormTimeline>(initialTimeline)
+  const [touchedStarts, setTouchedStarts] = useState<Partial<Record<Stage, boolean>>>({})
   const [submitted, setSubmitted] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setForm(INITIAL)
+    setTimeline(initialTimeline())
+    setTouchedStarts({})
     setSubmitted(false)
   }, [open])
 
-  const valid = form.name.trim().length > 0 && form.description.trim().length > 0
+  const setDate = (stage: Stage, field: 'start' | 'end', value: string) => {
+    setTimeline((t) => {
+      const next = { ...t, [stage]: { ...t[stage], [field]: value } }
+      const nextStage = NEXT_STAGE[stage]
+      if (field === 'end' && nextStage && !touchedStarts[nextStage]) {
+        next[nextStage] = { ...next[nextStage], start: value }
+      }
+      return next
+    })
+    if (field === 'start') setTouchedStarts((s) => ({ ...s, [stage]: true }))
+  }
+
+  const valid =
+    form.name.trim().length > 0 &&
+    form.description.trim().length > 0 &&
+    timeline.Evaluation.start.length > 0
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitted(true)
     if (!valid || loading) return
-    onCreate(form)
+    const tl: Timeline = {
+      Evaluation: { start: timeline.Evaluation.start || null, end: timeline.Evaluation.end || null },
+      Pilot: { start: timeline.Pilot.start || null, end: timeline.Pilot.end || null },
+      Scale: { start: timeline.Scale.start || null, end: timeline.Scale.end || null }
+    }
+    onCreate({ ...form, timeline: tl })
   }
 
   return (
@@ -70,7 +107,7 @@ export function AddBetModal({ open, loading = false, onClose, onCreate }: AddBet
             </DialogDescription>
           </DialogHeader>
 
-          <div className="px-7 py-6 space-y-5">
+          <div className="px-7 py-6 space-y-5 max-h-[60vh] overflow-y-auto">
             <Field
               label="Name"
               required
@@ -135,6 +172,38 @@ export function AddBetModal({ open, loading = false, onClose, onCreate }: AddBet
                   </SelectContent>
                 </Select>
               </Field>
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-[10px] uppercase tracking-wider2 text-muted-foreground">
+                Estimated timeline
+              </Label>
+              {STAGES.map((s) => (
+                <div key={s} className="grid grid-cols-2 gap-4">
+                  <Field
+                    label={`${s} start`}
+                    required={s === 'Evaluation'}
+                    error={
+                      s === 'Evaluation' && submitted && !timeline.Evaluation.start
+                        ? 'Required.'
+                        : null
+                    }
+                  >
+                    <Input
+                      type="date"
+                      value={timeline[s].start}
+                      onChange={(e) => setDate(s, 'start', e.target.value)}
+                    />
+                  </Field>
+                  <Field label={`${s} end`}>
+                    <Input
+                      type="date"
+                      value={timeline[s].end}
+                      onChange={(e) => setDate(s, 'end', e.target.value)}
+                    />
+                  </Field>
+                </div>
+              ))}
             </div>
           </div>
 

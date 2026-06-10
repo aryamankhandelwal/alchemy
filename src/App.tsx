@@ -4,19 +4,21 @@ import { toast } from 'sonner'
 
 import { api } from '@/lib/apiClient'
 import type { CreateBetInput } from '@/lib/createBet'
-import type { Bet, Decision, Patch, Stage } from '@/types/bet'
+import type { Bet, Decision, HistorySource, Patch, Stage } from '@/types/bet'
 
 import { AddBetModal } from '@/components/AddBetModal'
 import { BetModal } from '@/components/BetModal'
-import { Header } from '@/components/Header'
+import { Header, type View } from '@/components/Header'
 import { KanbanGrid } from '@/components/KanbanGrid'
 import { SummaryBar } from '@/components/SummaryBar'
+import { TimelineView } from '@/components/TimelineView'
 import { Toaster } from '@/components/ui/sonner'
 
 export default function App() {
   const [bets, setBets] = useState<Bet[] | null>(null)
   const [openBetId, setOpenBetId] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
+  const [view, setView] = useState<View>('kanban')
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
@@ -56,9 +58,9 @@ export default function App() {
   )
 
   const handlePatch = useCallback(
-    async (id: string, patch: Patch) => {
+    async (id: string, patch: Patch, source: HistorySource = 'ai', note = 'AI update') => {
       try {
-        const updated = await api.patchBet(id, { patch, source: 'ai', note: 'AI update' })
+        const updated = await api.patchBet(id, { patch, source, note })
         replaceBet(updated)
       } catch (e) {
         toast.error(`Update failed: ${(e as Error).message}`)
@@ -155,14 +157,18 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <Header onAddBet={() => setAddOpen(true)} />
+      <Header view={view} onViewChange={setView} onAddBet={() => setAddOpen(true)} />
       <SummaryBar bets={bets} />
       <main className="flex-1">
-        <KanbanGrid
-          bets={bets}
-          onBetMoved={handleBetMoved}
-          onBetClick={setOpenBetId}
-        />
+        {view === 'kanban' ? (
+          <KanbanGrid
+            bets={bets}
+            onBetMoved={handleBetMoved}
+            onBetClick={setOpenBetId}
+          />
+        ) : (
+          <TimelineView bets={bets} onBetClick={setOpenBetId} />
+        )}
       </main>
       <BetModal
         bet={openBet}

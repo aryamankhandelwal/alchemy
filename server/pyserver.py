@@ -16,7 +16,9 @@ Logic ported from:
   - server/chat.ts / enrich.ts / research.ts  (Gemini calls -> REST)
 """
 
+import base64
 import json
+import mimetypes
 import os
 import re
 import time
@@ -35,6 +37,7 @@ _r = dns.resolver.Resolver(configure=False)
 _r.nameservers = ["1.1.1.1", "8.8.8.8", "1.0.0.1"]
 dns.resolver.default_resolver = _r
 
+from bson.binary import Binary
 from pymongo import MongoClient
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -63,6 +66,9 @@ GEMINI_MODEL = ENV.get("GEMINI_MODEL", "gemini-2.5-flash")
 client = MongoClient(ENV["MONGODB_URI"], serverSelectionTimeoutMS=20000)
 bets_col = client[ENV.get("MONGODB_DB", "alchemy")]["bets"]
 bets_col.create_index("id", unique=True)
+artifacts_col = client[ENV.get("MONGODB_DB", "alchemy")]["artifacts"]
+artifacts_col.create_index("id", unique=True)
+artifacts_col.create_index("betId")
 print(f"[db] connected to {ENV.get('MONGODB_DB', 'alchemy')}; {bets_col.count_documents({})} bet(s)")
 
 def strip_id(doc):
@@ -176,6 +182,12 @@ def slugify(s):
     s = re.sub(r"-+", "-", s)
     return s[:40] or "bet"
 
+EMPTY_TIMELINE = {
+    "Evaluation": {"start": None, "end": None},
+    "Pilot": {"start": None, "end": None},
+    "Scale": {"start": None, "end": None},
+}
+
 def create_bet(inp):
     name = inp.get("name", "")
     description = inp.get("description", "")
@@ -193,6 +205,8 @@ def create_bet(inp):
         "market": {"tam": "—", "sam": "—", "som": "—", "sources": {}, "competitors": []},
         "risks": [],
         "kpis": {},
+        "timeline": inp.get("timeline") or EMPTY_TIMELINE,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
     }
 
 # ---------------------------------------------------------------- KPI schema (subset: thresholds + format) for prompts
@@ -584,6 +598,47 @@ def run_enrich_handler(bet_id):
     patch = enrich_patch(bet)
     return patch_bet_handler(bet_id, {"patch": patch, "source": "ai", "note": "Initial AI enrichment"})
 
+# ---------------------------------------------------------------- artifacts
+ARTIFACT_META_KEYS = ("id", "betId", "name", "type", "size", "uploadedAt")
+MAX_ARTIFACT_BYTES = 15 * 1024 * 1024  # keep well under Mongo's 16 MB doc limit
+
+def artifact_meta(doc):
+    return {k: doc.get(k) for k in ARTIFACT_META_KEYS}
+
+def list_artifacts_handler(bet_id):
+    return [artifact_meta(d) for d in artifacts_col.find({"betId": bet_id}).sort("uploadedAt", 1)]
+
+def upload_artifact_handler(bet_id, body):
+    if not bets_col.find_one({"id": bet_id}):
+        raise HttpError(404, f"bet {bet_id} not found")
+    name = (body.get("name") or "").strip()
+    data_b64 = body.get("data")
+    if not name or not data_b64:
+        raise HttpError(400, "name and data (base64) are required")
+    try:
+        raw = base64.b64decode(data_b64)
+    except Exception:
+        raise HttpError(400, "data is not valid base64")
+    if len(raw) > MAX_ARTIFACT_BYTES:
+        raise HttpError(413, "file too large (15 MB max)")
+    doc = {
+        "id": f"{int(time.time() * 1000):x}{random.randint(0, 0xFFFF):04x}",
+        "betId": bet_id,
+        "name": name,
+        "type": body.get("type") or mimetypes.guess_type(name)[0] or "application/octet-stream",
+        "size": len(raw),
+        "uploadedAt": datetime.now(timezone.utc).isoformat(),
+        "data": Binary(raw),
+    }
+    artifacts_col.insert_one(doc)
+    return artifact_meta(doc)
+
+def delete_artifact_handler(artifact_id):
+    res = artifacts_col.delete_one({"id": artifact_id})
+    if res.deleted_count == 0:
+        raise HttpError(404, f"artifact {artifact_id} not found")
+    return {"id": artifact_id}
+
 # ---------------------------------------------------------------- HTTP server
 ROUTES = [
     ("GET", re.compile(r"^/api/bets$"), lambda p, b: list_bets()),
@@ -594,7 +649,12 @@ ROUTES = [
     ("POST", re.compile(r"^/api/enrich/([^/]+)$"), lambda p, b: run_enrich_handler(p[0])),
     ("DELETE", re.compile(r"^/api/bets/([^/]+)$"), lambda p, b: delete_bet_handler(p[0])),
     ("POST", re.compile(r"^/api/chat$"), lambda p, b: chat_handler(b)),
+    ("GET", re.compile(r"^/api/bets/([^/]+)/artifacts$"), lambda p, b: list_artifacts_handler(p[0])),
+    ("POST", re.compile(r"^/api/bets/([^/]+)/artifacts$"), lambda p, b: upload_artifact_handler(p[0], b)),
+    ("DELETE", re.compile(r"^/api/artifacts/([^/]+)$"), lambda p, b: delete_artifact_handler(p[0])),
 ]
+
+ARTIFACT_FILE_RE = re.compile(r"^/api/artifacts/([^/]+)/file$")
 
 CONTENT_TYPES = {
     ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
@@ -662,7 +722,26 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _serve_artifact_file(self, artifact_id):
+        doc = artifacts_col.find_one({"id": artifact_id})
+        if not doc:
+            self._send_json(404, {"error": f"artifact {artifact_id} not found"})
+            return
+        data = bytes(doc["data"])
+        safe_name = doc["name"].replace('"', "")
+        self.send_response(200)
+        self.send_header("Content-Type", doc.get("type") or "application/octet-stream")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Disposition", f'inline; filename="{safe_name}"')
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_GET(self):
+        m = ARTIFACT_FILE_RE.match(self.path.split("?")[0])
+        if m:
+            self._serve_artifact_file(m.group(1))
+            return
         if self.path.startswith("/api/"):
             if not self._handle_api("GET"):
                 self._send_json(404, {"error": "no route"})

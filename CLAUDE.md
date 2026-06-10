@@ -112,12 +112,13 @@ Alchemy/
     │   ├── createBet.ts            factory for bets added via AddBetModal
     │   └── history.ts              diff a patch into Change[] + describe entries
     └── components/
-        ├── Header.tsx              ⬡ Alchemy wordmark + "Add bet" button
+        ├── Header.tsx              ⬡ Alchemy wordmark + Board/Timeline view toggle + "Add bet" button
         ├── SummaryBar.tsx          totals strip (total / prioritised / pilot / killed)
         ├── KanbanGrid.tsx          3-col × 4-row grid + DndContext + DragOverlay
+        ├── TimelineView.tsx        Gantt view: per-bet stage bars on a 12-month axis with year nav (default 2026)
         ├── KanbanCell.tsx          one droppable cell
         ├── BetCard.tsx             draggable Card with badges + KPI dots + score
-        ├── BetModal.tsx            Dialog + Tabs shell (Summary / Market / KPIs / Risk / Projections / History)
+        ├── BetModal.tsx            Dialog + Tabs shell (Summary / Market / KPIs / Risk / Artifacts / Projections / History)
         ├── AddBetModal.tsx         Dialog form for new bets
         ├── ChatPanel.tsx           AI chat (right side of BetModal)
         ├── bet-badges.tsx          StageBadge, DecisionBadge, KPIDot, ScorePill, scoreTone
@@ -126,6 +127,7 @@ Alchemy/
         │   ├── MarketSection.tsx
         │   ├── RiskSection.tsx
         │   ├── KPISection.tsx
+        │   ├── ArtifactsSection.tsx  upload/list/open bet documents (Mongo `artifacts` collection, /api/bets/:id/artifacts)
         │   ├── ProjectionsSection.tsx
         │   └── HistorySection.tsx
         └── ui/                     shadcn primitives — DO NOT mix domain code here

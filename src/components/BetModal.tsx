@@ -3,6 +3,7 @@ import { Loader2, RefreshCw, Trash2, X } from 'lucide-react'
 
 import { ChatPanel } from '@/components/ChatPanel'
 import { DecisionBadge, StageBadge } from '@/components/bet-badges'
+import { ArtifactsSection } from '@/components/modal/ArtifactsSection'
 import { HistorySection } from '@/components/modal/HistorySection'
 import { KPISection } from '@/components/modal/KPISection'
 import { MarketSection } from '@/components/modal/MarketSection'
@@ -17,13 +18,14 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import type { Bet, Patch } from '@/types/bet'
+import type { Bet, HistorySource, Patch } from '@/types/bet'
 
 const TABS = [
   { id: 'summary', label: 'Summary' },
   { id: 'market', label: 'Market' },
   { id: 'kpis', label: 'KPIs' },
   { id: 'risk', label: 'Risk Assessment' },
+  { id: 'artifacts', label: 'Artifacts' },
   { id: 'projections', label: 'Projections Simulator' },
   { id: 'history', label: 'History' }
 ] as const
@@ -31,7 +33,7 @@ const TABS = [
 interface BetModalProps {
   bet: Bet | null
   onClose: () => void
-  onPatch: (id: string, patch: Patch) => void | Promise<void>
+  onPatch: (id: string, patch: Patch, source?: HistorySource, note?: string) => void | Promise<void>
   onResearch?: (id: string) => Promise<Bet | null>
   onDelete?: (id: string) => void | Promise<void>
 }
@@ -131,7 +133,7 @@ export function BetModal({ bet, onClose, onPatch, onResearch, onDelete }: BetMod
 
             <div className="flex-1 overflow-y-auto px-8 py-6 min-h-0">
               <TabsContent value="summary" className="mt-0">
-                <SummarySection bet={bet} />
+                <SummarySection bet={bet} onPatch={onPatch} />
               </TabsContent>
               <TabsContent value="market" className="mt-0">
                 <MarketSection bet={bet} />
@@ -141,6 +143,9 @@ export function BetModal({ bet, onClose, onPatch, onResearch, onDelete }: BetMod
               </TabsContent>
               <TabsContent value="risk" className="mt-0">
                 <RiskSection bet={bet} />
+              </TabsContent>
+              <TabsContent value="artifacts" className="mt-0">
+                <ArtifactsSection bet={bet} />
               </TabsContent>
               <TabsContent value="projections" className="mt-0">
                 <ProjectionsSection bet={bet} />

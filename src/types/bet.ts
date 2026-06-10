@@ -57,6 +57,14 @@ export interface HistoryEntry {
 
 export type KpiValue = number | string
 
+/** ISO date (YYYY-MM-DD) or null when not set. */
+export interface PhaseDates {
+  start: string | null
+  end: string | null
+}
+
+export type Timeline = Record<Stage, PhaseDates>
+
 export interface Bet {
   id: string
   name: string
@@ -70,7 +78,20 @@ export interface Bet {
   market: Market
   risks: Risk[]
   kpis: Record<string, KpiValue>
+  timeline?: Timeline
+  /** ISO timestamp set at creation — anchors the bet's lifecycle on the Gantt view. */
+  createdAt?: string
   history?: HistoryEntry[]
 }
 
 export type Patch = Record<string, unknown> | null
+
+/** Uploaded document attached to a bet; binary lives server-side, this is metadata. */
+export interface Artifact {
+  id: string
+  betId: string
+  name: string
+  type: string
+  size: number
+  uploadedAt: string
+}

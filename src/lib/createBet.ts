@@ -1,4 +1,10 @@
-import type { Bet, Decision, Stage } from '@/types/bet'
+import type { Bet, Decision, Stage, Timeline } from '@/types/bet'
+
+export const EMPTY_TIMELINE: Timeline = {
+  Evaluation: { start: null, end: null },
+  Pilot: { start: null, end: null },
+  Scale: { start: null, end: null }
+}
 
 function slugify(s: string): string {
   return (
@@ -17,9 +23,10 @@ export interface CreateBetInput {
   description: string
   stage: Stage
   decision: Decision
+  timeline?: Timeline
 }
 
-export function createBet({ name, description, stage, decision }: CreateBetInput): Bet {
+export function createBet({ name, description, stage, decision, timeline }: CreateBetInput): Bet {
   const id = `${slugify(name)}-${Date.now().toString(36).slice(-4)}`
   return {
     id,
@@ -39,6 +46,8 @@ export function createBet({ name, description, stage, decision }: CreateBetInput
       competitors: []
     },
     risks: [],
-    kpis: {}
+    kpis: {},
+    timeline: timeline ?? EMPTY_TIMELINE,
+    createdAt: new Date().toISOString()
   }
 }
