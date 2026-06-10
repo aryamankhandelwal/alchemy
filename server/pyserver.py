@@ -614,37 +614,96 @@ def run_enrich_handler(bet_id):
     return patch_bet_handler(bet_id, {"patch": patch, "source": "ai", "note": "Initial AI enrichment"})
 
 # ---------------------------------------------------------------- score (score.ts)
-def score_bet(bet, artifacts):
+def _num_band(v, kill, prio, higher_better=True):
+    """Mirror kpiSchema.ts numeric evaluators: strict < / > at the kill edge."""
+    v = float(v)
+    if higher_better:
+        return "Kill" if v < kill else ("Prioritise" if v >= prio else "Proceed")
+    return "Kill" if v > kill else ("Prioritise" if v <= prio else "Proceed")
+
+KPI_EVAL = {
+    "Evaluation": {
+        "demandSignal": lambda v: _num_band(v, 0.05, 0.15),
+        "problemSeverity": lambda v: {"Low": "Kill", "Medium": "Proceed", "High": "Prioritise"}.get(str(v), "Proceed"),
+        "marketClarity": lambda v: {"Unclear": "Kill", "Partial": "Proceed", "Well-defined": "Prioritise"}.get(str(v), "Proceed"),
+        "speedToMvp": lambda v: _num_band(v, 26, 6, higher_better=False),
+    },
+    "Pilot": {
+        "activationRate": lambda v: _num_band(v, 0.2, 0.4),
+        "conversionRate": lambda v: _num_band(v, 0.05, 0.15),
+        "retentionD30": lambda v: _num_band(v, 0.2, 0.4),
+        "ltvCac": lambda v: _num_band(v, 1.0, 2.0),
+        "riskSignals": lambda v: {"High": "Kill", "Moderate": "Proceed", "Low": "Prioritise"}.get(str(v), "Proceed"),
+        "operationalLoad": lambda v: {"High": "Kill", "Medium": "Proceed", "Low": "Prioritise"}.get(str(v), "Proceed"),
+    },
+    "Scale": {
+        "ltvCac": lambda v: _num_band(v, 1.5, 2.5),
+        "contributionMargin": lambda v: {"Negative": "Kill", "Approaching breakeven": "Proceed", "Positive + improving": "Prioritise"}.get(str(v), "Proceed"),
+        "paybackMonths": lambda v: _num_band(v, 18, 9, higher_better=False),
+        "riskScalability": lambda v: {"Unstable": "Kill", "Stabilising": "Proceed", "Predictable": "Prioritise"}.get(str(v), "Proceed"),
+        "regulatoryReadiness": lambda v: {"Blocked": "Kill", "Partial": "Proceed", "Fully approved": "Prioritise"}.get(str(v), "Proceed"),
+        "operationalScalability": lambda v: {"Breaks": "Kill", "Needs optimisation": "Proceed", "Scales cleanly": "Prioritise"}.get(str(v), "Proceed"),
+        "strategicFit": lambda v: {"Weak": "Kill", "Adjacent": "Proceed", "Strong": "Prioritise"}.get(str(v), "Proceed"),
+    },
+}
+
+def format_kpi(fmt, v):
+    try:
+        if fmt == "pct":
+            return f"{round(float(v) * 100)}%"
+        if fmt == "x":
+            return f"{float(v):.1f}x"
+        if fmt == "months":
+            return f"{v} months"
+        if fmt == "weeks":
+            return f"{v} weeks"
+    except (TypeError, ValueError):
+        pass
+    return str(v)
+
+def score_bet(bet):
     stage = bet.get("stage", "Evaluation")
-    kpi_list = "\n".join(
-        f"  - {k} ({d['label']}): bands {d['thresholds']}"
-        for k, d in KPI_SCHEMA.get(stage, {}).items()
-    )
-    bet_slim = {k: v for k, v in bet.items() if k != "history"}
-    art_list = (
-        "\n".join(f"  - {a['name']} ({a.get('type') or 'unknown'})" for a in artifacts)
-        if artifacts else "  (none attached)"
-    )
+    # Pre-evaluate each KPI with the same logic as the UI dots so the model
+    # never re-derives band boundaries (it gets edges like "exactly 5%" wrong).
+    kpis = bet.get("kpis") or {}
+    lines = []
+    for k, d in KPI_SCHEMA.get(stage, {}).items():
+        v = kpis.get(k)
+        if v is None or v == "":
+            verdict = "NOT ENTERED"
+        else:
+            band = KPI_EVAL.get(stage, {}).get(k, lambda _v: "Proceed")(v)
+            verdict = f"{format_kpi(d['format'], v)} -> {band.upper()}"
+        lines.append(f"  - {k} ({d['label']}): {verdict}")
+    kpi_list = "\n".join(lines)
+    # Strip prior scoring outputs (aiSummary/scoreRationale/score) and raw kpis: they are
+    # what we're regenerating — leaving them in makes the model parrot stale verdicts.
+    bet_slim = {k: v for k, v in bet.items()
+                if k not in ("history", "kpis", "aiSummary", "scoreRationale", "score")}
     prompt = (
         "You are the investment-committee scorer inside Alchemy, Astra Tech's New Horizons "
         f"portfolio dashboard (UAE / MENA fintech). Score this bet 0-100 on how strong it looks "
         f"at its CURRENT stage ({stage}).\n\n"
-        "Weigh, in roughly this order:\n"
-        f"1. KPIs vs the stage-{stage} threshold bands below — mostly \"prioritise\" band => 75+, "
-        "mostly \"proceed\" => 45-75, any hard \"kill\" signal caps the score below 40. Missing KPI "
-        "values count against the score (unproven != good).\n"
-        "2. Risk register: count and severity of unmitigated High risks.\n"
-        "3. Market: TAM/SAM/SOM credibility and competitor pressure.\n"
-        "4. Evidence discipline: artifacts attached, timeline being kept, specific (not generic) "
-        "hypothesis and target customer.\n\n"
-        f"Stage-{stage} KPI thresholds:\n{kpi_list}\n\n"
+        "Scoring rules:\n"
+        "1. The entered KPIs are the primary driver. Each KPI below has been PRE-EVALUATED by the "
+        "app into KILL / PROCEED / PRIORITISE — these verdicts are FINAL and authoritative. Never "
+        "re-judge a value as borderline, 'at the kill threshold', or otherwise different from its "
+        "stated verdict. Mostly PRIORITISE => 75+, mostly PROCEED => 50-75, any KPI marked "
+        "KILL caps the score below 40.\n"
+        "2. MISSING KPI values are NOT a failure — the bet may simply be early in the phase and the "
+        "data not yet measurable. Do not cap or heavily penalise for them; at most note them in the "
+        "rationale and trim a few points if most KPIs are still unmeasured.\n"
+        "3. Risks adjust the score moderately (roughly +/-10): drag it down for High-severity risks "
+        "with weak or no mitigation; a credible mitigation largely neutralises a risk.\n"
+        "4. Market (TAM/SAM/SOM credibility, competitor pressure) is secondary context worth a few "
+        "points either way — competitive pressure alone must not sink an otherwise on-track bet.\n\n"
+        f"Stage-{stage} KPI verdicts (final):\n{kpi_list}\n\n"
         f"The bet (full JSON):\n{json.dumps(bet_slim, indent=2)}\n\n"
-        f"Attached artifacts:\n{art_list}\n\n"
         "Return JSON only with these fields:\n"
         "- score: integer 0-100.\n"
         '- rationale: your working, as 3-5 short bullet lines (each starting with "- ", separated by \\n). '
-        "One bullet per factor you weighed: KPI read vs thresholds, risks, market, evidence discipline. "
-        "Name the specific KPIs/risks that moved the score.\n"
+        "One bullet per factor you weighed: entered-KPI read vs thresholds, missing KPIs (neutral note), "
+        "risks, market. Name the specific KPIs/risks that moved the score.\n"
         "- aiSummary: a rewrite of the bet's aiSummary that is CONSISTENT with this score. 3-4 short "
         "sentences (50-70 words) synthesising the bet, then a final new line with EXACTLY "
         '"Recommendation: X" where X is Kill, Proceed, or Prioritise — aligned with the score '
@@ -672,8 +731,7 @@ def run_score_handler(bet_id):
     bet = get_bet(bet_id)
     if not bet:
         raise HttpError(404, f"bet {bet_id} not found")
-    artifacts = list_artifacts_handler(bet_id)
-    score, rationale, ai_summary = score_bet(bet, artifacts)
+    score, rationale, ai_summary = score_bet(bet)
     return patch_bet_handler(bet_id, {
         "patch": {"score": score, "scoreRationale": rationale, "aiSummary": ai_summary},
         "source": "ai",

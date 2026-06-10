@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { Loader2, RefreshCw, Trash2, X } from 'lucide-react'
+import { Trash2, X } from 'lucide-react'
 
 import { ChatPanel } from '@/components/ChatPanel'
 import { DecisionBadge, StageBadge } from '@/components/bet-badges'
@@ -40,18 +39,6 @@ interface BetModalProps {
 }
 
 export function BetModal({ bet, onClose, onPatch, onResearch, onScore, onDelete }: BetModalProps) {
-  const [researching, setResearching] = useState(false)
-
-  const runResearch = async () => {
-    if (!bet || !onResearch || researching) return
-    setResearching(true)
-    try {
-      await onResearch(bet.id)
-    } finally {
-      setResearching(false)
-    }
-  }
-
   return (
     <Dialog
       open={!!bet}
@@ -78,23 +65,6 @@ export function BetModal({ bet, onClose, onPatch, onResearch, onScore, onDelete 
                   <h2 className="text-xl text-foreground font-bold leading-tight">{bet.name}</h2>
                 </div>
                 <div className="flex items-center gap-1 -mt-1 -mr-1">
-                  {onResearch && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={runResearch}
-                      disabled={researching}
-                      className="text-[11px] uppercase tracking-wider2 border-primary/30 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground hover:border-primary"
-                    >
-                      {researching ? (
-                        <Loader2 className="!size-3.5 animate-spin" />
-                      ) : (
-                        <RefreshCw className="!size-3.5" />
-                      )}
-                      <span>{researching ? 'Researching…' : 'Refresh market data'}</span>
-                    </Button>
-                  )}
                   {onDelete && (
                     <Button
                       type="button"
@@ -137,7 +107,7 @@ export function BetModal({ bet, onClose, onPatch, onResearch, onScore, onDelete 
                 <SummarySection bet={bet} onPatch={onPatch} onScore={onScore} />
               </TabsContent>
               <TabsContent value="market" className="mt-0">
-                <MarketSection bet={bet} />
+                <MarketSection bet={bet} onResearch={onResearch} />
               </TabsContent>
               <TabsContent value="kpis" className="mt-0">
                 <KPISection bet={bet} />

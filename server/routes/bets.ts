@@ -7,9 +7,9 @@ import { createBet, type CreateBetInput } from '../../src/lib/createBet'
 import { enrichBet } from '../enrich'
 import { appendHistory, diffPatch, makeHistoryEntry } from '../../src/lib/history'
 import type { Bet, HistorySource, Patch } from '../../src/types/bet'
-import { getBetsCollection, getDb } from '../db'
+import { getBetsCollection } from '../db'
 import { researchMarket } from '../research'
-import { scoreBet, type ArtifactMeta } from '../score'
+import { scoreBet } from '../score'
 
 function stripId<T extends { _id?: unknown }>(doc: T): Omit<T, '_id'> {
   const { _id: _ignored, ...rest } = doc
@@ -92,13 +92,7 @@ export async function runScoreHandler(id: string): Promise<Bet> {
   if (!doc) throw Object.assign(new Error(`bet ${id} not found`), { status: 404 })
   const bet = stripId(doc) as Bet
 
-  const { db } = await getDb()
-  const artifacts = (await db
-    .collection('artifacts')
-    .find({ betId: id }, { projection: { _id: 0, name: 1, type: 1, size: 1 } })
-    .toArray()) as unknown as ArtifactMeta[]
-
-  const { score, rationale, aiSummary } = await scoreBet(bet, artifacts)
+  const { score, rationale, aiSummary } = await scoreBet(bet)
   return patchBetHandler(id, {
     patch: { score, scoreRationale: rationale, aiSummary },
     source: 'ai',

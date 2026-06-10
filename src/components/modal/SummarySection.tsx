@@ -95,7 +95,7 @@ export function SummarySection({ bet, onPatch, onScore }: SummarySectionProps) {
                 onClick={runScore}
                 disabled={scoring}
                 aria-label="Refresh score"
-                title="AI re-scores the bet from its current summary, market, KPIs, risks, and artifacts"
+                title="AI re-scores the bet from its current summary, market, KPIs, and risks"
                 className="text-muted-foreground hover:text-primary shrink-0"
               >
                 {scoring ? (

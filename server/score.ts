@@ -15,54 +15,67 @@ const ScoreSchema = z.object({
   aiSummary: z.string()
 })
 
-export interface ArtifactMeta {
-  name: string
-  type?: string
-  size?: number
-}
-
 export interface ScoreResult {
   score: number
   rationale: string
   aiSummary: string
 }
 
-export async function scoreBet(bet: Bet, artifacts: ArtifactMeta[]): Promise<ScoreResult> {
+export async function scoreBet(bet: Bet): Promise<ScoreResult> {
   const apiKey = envVar('GEMINI_API_KEY')
   if (!apiKey) throw new Error('GEMINI_API_KEY is not set.')
   const model = envVar('GEMINI_MODEL') || 'gemini-2.5-flash'
   const ai = new GoogleGenAI({ apiKey })
 
   const defs = getKpiDefs(bet.stage)
+  // Pre-evaluate each KPI with the same logic as the UI dots so the model
+  // never re-derives band boundaries (it gets edge cases like "exactly 5%" wrong).
   const kpiList = Object.entries(defs)
-    .map(([key, d]) => `  - ${key} (${d.label}): bands ${d.thresholds}`)
+    .map(([key, d]) => {
+      const v = bet.kpis?.[key]
+      const verdict =
+        v === undefined || v === null || v === ''
+          ? 'NOT ENTERED'
+          : `${d.formatValue(v)} → ${d.evaluate(v).toUpperCase()}`
+      return `  - ${key} (${d.label}): ${verdict}`
+    })
     .join('\n')
 
-  const { history: _history, ...betSansHistory } = bet
-  const artifactList = artifacts.length
-    ? artifacts.map((a) => `  - ${a.name} (${a.type ?? 'unknown'})`).join('\n')
-    : '  (none attached)'
+  // Strip prior scoring outputs (aiSummary/scoreRationale/score) and raw kpis: they are
+  // what we're regenerating — leaving them in makes the model parrot stale verdicts.
+  const {
+    history: _history,
+    kpis: _kpis,
+    aiSummary: _aiSummary,
+    scoreRationale: _scoreRationale,
+    score: _score,
+    ...betSansHistory
+  } = bet
 
   const prompt =
     `You are the investment-committee scorer inside Alchemy, Astra Tech's New Horizons ` +
     `portfolio dashboard (UAE / MENA fintech). Score this bet 0-100 on how strong it looks ` +
     `at its CURRENT stage (${bet.stage}).\n\n` +
-    `Weigh, in roughly this order:\n` +
-    `1. KPIs vs the stage-${bet.stage} threshold bands below — mostly "prioritise" band ⇒ 75+, ` +
-    `mostly "proceed" ⇒ 45-75, any hard "kill" signal caps the score below 40. Missing KPI ` +
-    `values count against the score (unproven ≠ good).\n` +
-    `2. Risk register: count and severity of unmitigated High risks.\n` +
-    `3. Market: TAM/SAM/SOM credibility and competitor pressure.\n` +
-    `4. Evidence discipline: artifacts attached, timeline being kept, specific (not generic) ` +
-    `hypothesis and target customer.\n\n` +
-    `Stage-${bet.stage} KPI thresholds:\n${kpiList}\n\n` +
+    `Scoring rules:\n` +
+    `1. The entered KPIs are the primary driver. Each KPI below has been PRE-EVALUATED by the ` +
+    `app into KILL / PROCEED / PRIORITISE — these verdicts are FINAL and authoritative. Never ` +
+    `re-judge a value as borderline, "at the kill threshold", or otherwise different from its ` +
+    `stated verdict. Mostly PRIORITISE ⇒ 75+, mostly PROCEED ⇒ 50-75, any KPI marked ` +
+    `KILL caps the score below 40.\n` +
+    `2. MISSING KPI values are NOT a failure — the bet may simply be early in the phase and the ` +
+    `data not yet measurable. Do not cap or heavily penalise for them; at most note them in the ` +
+    `rationale and trim a few points if most KPIs are still unmeasured.\n` +
+    `3. Risks adjust the score moderately (roughly ±10): drag it down for High-severity risks ` +
+    `with weak or no mitigation; a credible mitigation largely neutralises a risk.\n` +
+    `4. Market (TAM/SAM/SOM credibility, competitor pressure) is secondary context worth a few ` +
+    `points either way — competitive pressure alone must not sink an otherwise on-track bet.\n\n` +
+    `Stage-${bet.stage} KPI verdicts (final):\n${kpiList}\n\n` +
     `The bet (full JSON):\n${JSON.stringify(betSansHistory, null, 2)}\n\n` +
-    `Attached artifacts:\n${artifactList}\n\n` +
     `Return JSON only with these fields:\n` +
     `- score: integer 0-100.\n` +
     `- rationale: your working, as 3-5 short bullet lines (each starting with "- ", separated by \\n). ` +
-    `One bullet per factor you weighed: KPI read vs thresholds, risks, market, evidence discipline. ` +
-    `Name the specific KPIs/risks that moved the score.\n` +
+    `One bullet per factor you weighed: entered-KPI read vs thresholds, missing KPIs (neutral note), ` +
+    `risks, market. Name the specific KPIs/risks that moved the score.\n` +
     `- aiSummary: a rewrite of the bet's aiSummary that is CONSISTENT with this score. 3-4 short ` +
     `sentences (50-70 words) synthesising the bet, then a final new line with EXACTLY ` +
     `"Recommendation: X" where X is Kill, Proceed, or Prioritise — aligned with the score ` +

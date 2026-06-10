@@ -1,4 +1,8 @@
+import { useState } from 'react'
+import { Loader2, RefreshCw } from 'lucide-react'
+
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import type { Bet, Competitor, ThreatLevel } from '@/types/bet'
 
@@ -69,7 +73,24 @@ function CompetitorCard({ c }: { c: Competitor }) {
   )
 }
 
-export function MarketSection({ bet }: { bet: Bet }) {
+interface MarketSectionProps {
+  bet: Bet
+  onResearch?: (id: string) => Promise<Bet | null>
+}
+
+export function MarketSection({ bet, onResearch }: MarketSectionProps) {
+  const [researching, setResearching] = useState(false)
+
+  const runResearch = async () => {
+    if (!onResearch || researching) return
+    setResearching(true)
+    try {
+      await onResearch(bet.id)
+    } finally {
+      setResearching(false)
+    }
+  }
+
   const m = bet.market
   const competitors = m.competitors ?? []
   const cells: { k: 'tam' | 'sam' | 'som'; l: string }[] = [
@@ -80,6 +101,26 @@ export function MarketSection({ bet }: { bet: Bet }) {
 
   return (
     <div className="space-y-6">
+      {onResearch && (
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={runResearch}
+            disabled={researching}
+            className="text-[11px] uppercase tracking-wider2 border-primary/30 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground hover:border-primary"
+          >
+            {researching ? (
+              <Loader2 className="!size-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="!size-3.5" />
+            )}
+            <span>{researching ? 'Researching…' : 'Refresh market data'}</span>
+          </Button>
+        </div>
+      )}
+
       <div className="grid grid-cols-3 gap-3">
         {cells.map(({ k, l }) => (
           <Card key={k} className="p-4 bg-popover/40 shadow-none">
