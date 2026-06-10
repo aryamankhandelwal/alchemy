@@ -12,8 +12,8 @@ interface HeaderProps {
 }
 
 const VIEWS: { id: View; label: string; icon: typeof LayoutGrid }[] = [
-  { id: 'kanban', label: 'Board', icon: LayoutGrid },
-  { id: 'timeline', label: 'Timeline', icon: CalendarRange }
+  { id: 'kanban', label: 'Kanban', icon: LayoutGrid },
+  { id: 'timeline', label: 'Gantt', icon: CalendarRange }
 ]
 
 export function Header({ view, onViewChange, onAddBet }: HeaderProps) {
