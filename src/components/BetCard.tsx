@@ -1,9 +1,9 @@
 import { useDraggable } from '@dnd-kit/core'
-import { CalendarRange } from 'lucide-react'
+import { CheckCircle2, TriangleAlert } from 'lucide-react'
 
 import { Card } from '@/components/ui/card'
 import { DecisionBadge, KPIDot, ScorePill, StageBadge } from '@/components/bet-badges'
-import { formatRange } from '@/lib/dates'
+import { formatDate } from '@/lib/dates'
 import { evaluateKpi, getKpiDefs } from '@/lib/kpiSchema'
 import { cn } from '@/lib/utils'
 import type { Bet } from '@/types/bet'
@@ -23,8 +23,12 @@ export function BetCard({ bet, onClick, isDragOverlay = false }: BetCardProps) {
   const defs = getKpiDefs(bet.stage)
   const kpiKeys = Object.keys(defs).slice(0, 3)
   const dots = kpiKeys.map((k) => evaluateKpi(bet.stage, k, bet.kpis?.[k]))
-  const phase = bet.timeline?.[bet.stage]
-  const stageDates = formatRange(phase?.start, phase?.end)
+  const stageStart = bet.timeline?.[bet.stage]?.start
+  // Flag bets that have been sitting in their current stage for over ~2 months.
+  const STALE_AFTER_MS = 61 * 86_400_000
+  const isStale = stageStart
+    ? Date.now() - new Date(`${stageStart}T00:00:00`).getTime() > STALE_AFTER_MS
+    : false
 
   return (
     <Card
@@ -51,10 +55,21 @@ export function BetCard({ bet, onClick, isDragOverlay = false }: BetCardProps) {
       <p className="text-[11px] text-muted-foreground leading-relaxed mb-4 line-clamp-2 min-h-[2.6em]">
         {bet.description}
       </p>
-      {stageDates && (
-        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mb-4 -mt-2">
-          <CalendarRange className="size-3 shrink-0" />
-          <span>{stageDates}</span>
+      {stageStart && (
+        <div
+          className={cn(
+            'flex items-center gap-1.5 text-[10px] mb-4 -mt-2',
+            isStale ? 'text-warning' : 'text-muted-foreground'
+          )}
+        >
+          {isStale ? (
+            <TriangleAlert className="size-3 shrink-0" />
+          ) : (
+            <CheckCircle2 className="size-3 shrink-0 text-success" />
+          )}
+          <span>
+            In {bet.stage} since {formatDate(stageStart)}
+          </span>
         </div>
       )}
       <div className="flex items-center justify-between gap-2">
