@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader2, RefreshCw, X } from 'lucide-react'
+import { Loader2, RefreshCw, Trash2, X } from 'lucide-react'
 
 import { ChatPanel } from '@/components/ChatPanel'
 import { DecisionBadge, StageBadge } from '@/components/bet-badges'
@@ -33,9 +33,10 @@ interface BetModalProps {
   onClose: () => void
   onPatch: (id: string, patch: Patch) => void | Promise<void>
   onResearch?: (id: string) => Promise<Bet | null>
+  onDelete?: (id: string) => void | Promise<void>
 }
 
-export function BetModal({ bet, onClose, onPatch, onResearch }: BetModalProps) {
+export function BetModal({ bet, onClose, onPatch, onResearch, onDelete }: BetModalProps) {
   const [researching, setResearching] = useState(false)
 
   const runResearch = async () => {
@@ -89,6 +90,18 @@ export function BetModal({ bet, onClose, onPatch, onResearch }: BetModalProps) {
                         <RefreshCw className="!size-3.5" />
                       )}
                       <span>{researching ? 'Researching…' : 'Refresh market data'}</span>
+                    </Button>
+                  )}
+                  {onDelete && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onDelete(bet.id)}
+                      aria-label="Delete bet"
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="!size-4" />
                     </Button>
                   )}
                   <Button

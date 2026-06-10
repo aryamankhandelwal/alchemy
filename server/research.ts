@@ -46,9 +46,21 @@ const RESPONSE_SCHEMA = {
   type: 'object',
   required: ['tam', 'sam', 'som', 'sources', 'competitors'],
   properties: {
-    tam: { type: 'string', description: 'Total addressable market, e.g. "$4.2B".' },
-    sam: { type: 'string', description: 'Serviceable addressable market.' },
-    som: { type: 'string', description: 'Serviceable obtainable market (year-1).' },
+    tam: {
+      type: 'string',
+      description:
+        'TAM as a revenue pool in USD. ONLY a currency amount, e.g. "$4.2B" or "$850M". No prose, no units other than $, no parentheses, no source.'
+    },
+    sam: {
+      type: 'string',
+      description:
+        'SAM as a revenue pool in USD. ONLY a currency amount, e.g. "$1.2B" or "$320M". No prose.'
+    },
+    som: {
+      type: 'string',
+      description:
+        'Year-1 SOM as a revenue pool in USD. ONLY a currency amount, e.g. "$45M". No prose.'
+    },
     sources: {
       type: 'object',
       required: ['tam', 'sam', 'som'],
@@ -100,7 +112,10 @@ export async function researchMarket(bet: Bet): Promise<Patch> {
     `${bet.description}\n` +
     (bet.targetCustomer ? `Target customer: ${bet.targetCustomer}\n` : '') +
     `\nFind:\n` +
-    `- TAM, SAM, SOM with publication sources (year-1 SOM for our context).\n` +
+    `- TAM, SAM, SOM expressed as REVENUE POOLS in USD (annual addressable revenue, not user counts ` +
+    `or transaction volume). Each value must be a bare currency string like "$4.2B" or "$850M" — ` +
+    `no prose, no qualifiers, no parentheses. Put any descriptive caption ONLY in the corresponding ` +
+    `sources field. Year-1 attainable for SOM.\n` +
     `- Top 3-5 competitors with 2-3 current metrics each (revenue, funding, users, profitability) with sources.\n` +
     `- For each: what they have that we lack (edge), what we beat them on (gap), threat level (Low/Medium/High).\n` +
     `\nUAE / MENA fintech context is preferred. Cite sources for every figure.`

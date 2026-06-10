@@ -162,7 +162,6 @@ export default function App() {
           bets={bets}
           onBetMoved={handleBetMoved}
           onBetClick={setOpenBetId}
-          onBetDelete={handleDelete}
         />
       </main>
       <BetModal
@@ -170,6 +169,7 @@ export default function App() {
         onClose={() => setOpenBetId(null)}
         onPatch={handlePatch}
         onResearch={handleResearch}
+        onDelete={handleDelete}
       />
       <AddBetModal
         open={addOpen}

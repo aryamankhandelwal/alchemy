@@ -19,10 +19,9 @@ interface KanbanGridProps {
   bets: Bet[]
   onBetMoved: (id: string, stage: Stage, decision: Decision) => void
   onBetClick: (id: string) => void
-  onBetDelete?: (id: string) => void
 }
 
-export function KanbanGrid({ bets, onBetMoved, onBetClick, onBetDelete }: KanbanGridProps) {
+export function KanbanGrid({ bets, onBetMoved, onBetClick }: KanbanGridProps) {
   const [activeId, setActiveId] = useState<string | null>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
@@ -89,7 +88,6 @@ export function KanbanGrid({ bets, onBetMoved, onBetClick, onBetDelete }: Kanban
                           key={b.id}
                           bet={b}
                           onClick={onBetClick}
-                          onDelete={onBetDelete}
                         />
                       ))}
                     </KanbanCell>
