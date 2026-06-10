@@ -94,6 +94,7 @@ Alchemy/
 ├── .env.example
 ├── server/
 │   ├── chat.ts                     /api/chat handler (Vercel AI SDK)
+│   ├── score.ts                    /api/score/:id — AI re-scores a bet from its full state
 │   └── pyserver.py                 no-node fallback server (see "Run" section)
 └── src/
     ├── main.tsx                    bootstrap; force-adds `dark` class on <html>

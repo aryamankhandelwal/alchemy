@@ -37,6 +37,7 @@ export const api = {
   deleteBet: (id: string) => request<{ id: string }>(`/api/bets/${id}`, { method: 'DELETE' }),
   research: (id: string) => request<Bet>(`/api/research/${id}`, { method: 'POST' }),
   enrich: (id: string) => request<Bet>(`/api/enrich/${id}`, { method: 'POST' }),
+  score: (id: string) => request<Bet>(`/api/score/${id}`, { method: 'POST' }),
   listArtifacts: (betId: string) => request<Artifact[]>(`/api/bets/${betId}/artifacts`),
   uploadArtifact: (betId: string, file: { name: string; type: string; data: string }) =>
     request<Artifact>(`/api/bets/${betId}/artifacts`, {

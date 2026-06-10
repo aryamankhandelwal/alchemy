@@ -35,10 +35,11 @@ interface BetModalProps {
   onClose: () => void
   onPatch: (id: string, patch: Patch, source?: HistorySource, note?: string) => void | Promise<void>
   onResearch?: (id: string) => Promise<Bet | null>
+  onScore?: (id: string) => Promise<Bet | null>
   onDelete?: (id: string) => void | Promise<void>
 }
 
-export function BetModal({ bet, onClose, onPatch, onResearch, onDelete }: BetModalProps) {
+export function BetModal({ bet, onClose, onPatch, onResearch, onScore, onDelete }: BetModalProps) {
   const [researching, setResearching] = useState(false)
 
   const runResearch = async () => {
@@ -133,7 +134,7 @@ export function BetModal({ bet, onClose, onPatch, onResearch, onDelete }: BetMod
 
             <div className="flex-1 overflow-y-auto px-8 py-6 min-h-0">
               <TabsContent value="summary" className="mt-0">
-                <SummarySection bet={bet} onPatch={onPatch} />
+                <SummarySection bet={bet} onPatch={onPatch} onScore={onScore} />
               </TabsContent>
               <TabsContent value="market" className="mt-0">
                 <MarketSection bet={bet} />

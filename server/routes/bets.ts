@@ -7,8 +7,9 @@ import { createBet, type CreateBetInput } from '../../src/lib/createBet'
 import { enrichBet } from '../enrich'
 import { appendHistory, diffPatch, makeHistoryEntry } from '../../src/lib/history'
 import type { Bet, HistorySource, Patch } from '../../src/types/bet'
-import { getBetsCollection } from '../db'
+import { getBetsCollection, getDb } from '../db'
 import { researchMarket } from '../research'
+import { scoreBet, type ArtifactMeta } from '../score'
 
 function stripId<T extends { _id?: unknown }>(doc: T): Omit<T, '_id'> {
   const { _id: _ignored, ...rest } = doc
@@ -83,6 +84,26 @@ export async function runEnrichHandler(id: string): Promise<Bet> {
 
   const patch = await enrichBet(bet)
   return patchBetHandler(id, { patch, source: 'ai', note: 'Initial AI enrichment' })
+}
+
+export async function runScoreHandler(id: string): Promise<Bet> {
+  const col = await getBetsCollection()
+  const doc = await col.findOne({ id })
+  if (!doc) throw Object.assign(new Error(`bet ${id} not found`), { status: 404 })
+  const bet = stripId(doc) as Bet
+
+  const { db } = await getDb()
+  const artifacts = (await db
+    .collection('artifacts')
+    .find({ betId: id }, { projection: { _id: 0, name: 1, type: 1, size: 1 } })
+    .toArray()) as unknown as ArtifactMeta[]
+
+  const { score, rationale } = await scoreBet(bet, artifacts)
+  return patchBetHandler(id, {
+    patch: { score },
+    source: 'ai',
+    note: `Score refresh: ${rationale}`
+  })
 }
 
 export async function deleteBetHandler(id: string): Promise<{ id: string }> {

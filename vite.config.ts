@@ -11,7 +11,8 @@ import {
   listBets,
   patchBetHandler,
   runEnrichHandler,
-  runResearchHandler
+  runResearchHandler,
+  runScoreHandler
 } from './server/routes/bets'
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
@@ -53,6 +54,11 @@ const routes: Route[] = [
     method: 'DELETE',
     pattern: /^\/api\/bets\/([^/]+)$/,
     handler: ({ params }) => deleteBetHandler(params[0])
+  },
+  {
+    method: 'POST',
+    pattern: /^\/api\/score\/([^/]+)$/,
+    handler: ({ params }) => runScoreHandler(params[0])
   },
   {
     method: 'POST',

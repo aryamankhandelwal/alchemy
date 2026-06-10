@@ -598,6 +598,60 @@ def run_enrich_handler(bet_id):
     patch = enrich_patch(bet)
     return patch_bet_handler(bet_id, {"patch": patch, "source": "ai", "note": "Initial AI enrichment"})
 
+# ---------------------------------------------------------------- score (score.ts)
+def score_bet(bet, artifacts):
+    stage = bet.get("stage", "Evaluation")
+    kpi_list = "\n".join(
+        f"  - {k} ({d['label']}): bands {d['thresholds']}"
+        for k, d in KPI_SCHEMA.get(stage, {}).items()
+    )
+    bet_slim = {k: v for k, v in bet.items() if k != "history"}
+    art_list = (
+        "\n".join(f"  - {a['name']} ({a.get('type') or 'unknown'})" for a in artifacts)
+        if artifacts else "  (none attached)"
+    )
+    prompt = (
+        "You are the investment-committee scorer inside Alchemy, Astra Tech's New Horizons "
+        f"portfolio dashboard (UAE / MENA fintech). Score this bet 0-100 on how strong it looks "
+        f"at its CURRENT stage ({stage}).\n\n"
+        "Weigh, in roughly this order:\n"
+        f"1. KPIs vs the stage-{stage} threshold bands below — mostly \"prioritise\" band => 75+, "
+        "mostly \"proceed\" => 45-75, any hard \"kill\" signal caps the score below 40. Missing KPI "
+        "values count against the score (unproven != good).\n"
+        "2. Risk register: count and severity of unmitigated High risks.\n"
+        "3. Market: TAM/SAM/SOM credibility and competitor pressure.\n"
+        "4. Evidence discipline: artifacts attached, timeline being kept, specific (not generic) "
+        "hypothesis and target customer.\n\n"
+        f"Stage-{stage} KPI thresholds:\n{kpi_list}\n\n"
+        f"The bet (full JSON):\n{json.dumps(bet_slim, indent=2)}\n\n"
+        f"Attached artifacts:\n{art_list}\n\n"
+        'Return JSON only: {"score": <integer 0-100>, "rationale": "<1-2 sentences explaining the score>"}'
+    )
+    raw = gemini_generate(
+        [{"role": "user", "parts": [{"text": prompt}]}],
+        response_mime_type="application/json",
+        response_schema={
+            "type": "object",
+            "required": ["score", "rationale"],
+            "properties": {"score": {"type": "integer"}, "rationale": {"type": "string"}},
+        },
+    )
+    data = json.loads(raw)
+    score = max(0, min(100, int(round(float(data["score"])))))
+    return score, str(data.get("rationale", ""))
+
+def run_score_handler(bet_id):
+    bet = get_bet(bet_id)
+    if not bet:
+        raise HttpError(404, f"bet {bet_id} not found")
+    artifacts = list_artifacts_handler(bet_id)
+    score, rationale = score_bet(bet, artifacts)
+    return patch_bet_handler(bet_id, {
+        "patch": {"score": score},
+        "source": "ai",
+        "note": f"Score refresh: {rationale}",
+    })
+
 # ---------------------------------------------------------------- artifacts
 ARTIFACT_META_KEYS = ("id", "betId", "name", "type", "size", "uploadedAt")
 MAX_ARTIFACT_BYTES = 15 * 1024 * 1024  # keep well under Mongo's 16 MB doc limit
@@ -652,6 +706,7 @@ ROUTES = [
     ("GET", re.compile(r"^/api/bets/([^/]+)/artifacts$"), lambda p, b: list_artifacts_handler(p[0])),
     ("POST", re.compile(r"^/api/bets/([^/]+)/artifacts$"), lambda p, b: upload_artifact_handler(p[0], b)),
     ("DELETE", re.compile(r"^/api/artifacts/([^/]+)$"), lambda p, b: delete_artifact_handler(p[0])),
+    ("POST", re.compile(r"^/api/score/([^/]+)$"), lambda p, b: run_score_handler(p[0])),
 ]
 
 ARTIFACT_FILE_RE = re.compile(r"^/api/artifacts/([^/]+)/file$")

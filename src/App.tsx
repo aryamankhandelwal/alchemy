@@ -84,6 +84,21 @@ export default function App() {
     [replaceBet]
   )
 
+  const handleScore = useCallback(
+    async (id: string) => {
+      try {
+        const updated = await api.score(id)
+        replaceBet(updated)
+        toast.success(`${updated.name}: score updated to ${updated.score}`)
+        return updated
+      } catch (e) {
+        toast.error(`Scoring failed: ${(e as Error).message}`)
+        return null
+      }
+    },
+    [replaceBet]
+  )
+
   const handleCreate = useCallback(async (formData: CreateBetInput) => {
     setCreating(true)
     try {
@@ -175,6 +190,7 @@ export default function App() {
         onClose={() => setOpenBetId(null)}
         onPatch={handlePatch}
         onResearch={handleResearch}
+        onScore={handleScore}
         onDelete={handleDelete}
       />
       <AddBetModal
