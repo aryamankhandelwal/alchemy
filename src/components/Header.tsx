@@ -55,7 +55,7 @@ export function Header({ view, onViewChange, onAddBet, onGranolaSync }: HeaderPr
           className="text-xs uppercase tracking-wider2 text-muted-foreground hover:text-foreground"
         >
           <AudioLines className="!size-3.5" />
-          Granola Sync
+          Notes Sync
         </Button>
         <Button
           type="button"

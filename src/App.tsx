@@ -165,7 +165,7 @@ export default function App() {
         edits > 0 ? `${edits} bet update${edits === 1 ? '' : 's'}` : null,
         created > 0 ? `${created} new bet${created === 1 ? '' : 's'}` : null
       ].filter(Boolean)
-      if (parts.length) toast.success(`Granola sync applied: ${parts.join(', ')}`)
+      if (parts.length) toast.success(`Notes sync applied: ${parts.join(', ')}`)
     },
     [enrichAfterCreate, handlePatch]
   )

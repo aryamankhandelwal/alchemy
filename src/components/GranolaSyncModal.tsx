@@ -95,7 +95,7 @@ export function GranolaSyncModal({ open, onClose, onApply }: GranolaSyncModalPro
         <DialogHeader className="px-7 pt-7 pb-4 border-b text-left space-y-1.5">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider2 text-success">
             <AudioLines className="size-3.5" />
-            Granola Sync
+            Notes Sync
           </div>
           <DialogTitle className="text-lg text-foreground font-bold">
             {result ? `Review changes — ${result.meetingTitle}` : 'Sync a meeting transcript'}
@@ -103,7 +103,7 @@ export function GranolaSyncModal({ open, onClose, onApply }: GranolaSyncModalPro
           <DialogDescription className="text-xs leading-relaxed">
             {result
               ? 'The AI extracted these proposals from the transcript. Nothing is saved until you apply — remove anything that doesn’t belong.'
-              : 'Paste the meeting transcript from Granola (R&D Squad folder). The AI will pull out bet updates, stage moves, KPI changes and new ideas for your review.'}
+              : 'Paste a meeting transcript from your notes app (e.g. Granola — R&D Squad folder). The AI will pull out bet updates, stage moves, KPI changes and new ideas for your review.'}
           </DialogDescription>
         </DialogHeader>
 
