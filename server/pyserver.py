@@ -649,10 +649,27 @@ RESEARCH_SCHEMA = {
     },
 }
 
+# We ARE Astra Tech — these brands must never be returned as competitors.
+# Belt-and-braces: instructed in the prompt AND filtered out of the result.
+OWN_BRANDS = ("astra tech", "astratech", "botim", "payby", "quantix")
+
+IDENTITY_BRIEF = (
+    "IMPORTANT — who we are: this bet belongs to Astra Tech (UAE), whose products include "
+    "Botim, PayBy, and Quantix. These are US — never list Astra Tech, Botim, PayBy, or Quantix "
+    "as competitors. Likewise, any company the bet description mentions as a partner, "
+    "distribution channel, insurer/bank partner, or supplier is a PARTNER, not a competitor — "
+    "exclude them too. Competitors are external companies fighting for the same customers."
+)
+
+def is_own_brand(name):
+    n = str(name).lower()
+    return any(b in n for b in OWN_BRANDS)
+
 def research_patch(bet):
     briefing = (
         f"Research current market data for: {bet['name']}.\n{bet['description']}\n"
         + (f"Target customer: {bet['targetCustomer']}\n" if bet.get("targetCustomer") else "")
+        + "\n" + IDENTITY_BRIEF + "\n"
         + "\nFind:\n- TAM, SAM, SOM as REVENUE POOLS in USD (bare currency strings like \"$4.2B\"). "
         "Year-1 attainable for SOM.\n"
         "- Top 3-5 competitors with 2-3 current metrics each (with sources).\n"
@@ -669,9 +686,10 @@ def research_patch(bet):
         {"role": "user", "parts": [{"text": "Now emit the structured findings as JSON matching the response schema. Do not omit fields."}]},
     ], response_mime_type="application/json", response_schema=RESEARCH_SCHEMA)
     data = json.loads(raw)
+    competitors = [c for c in (data.get("competitors") or []) if not is_own_brand(c.get("name", ""))]
     return {
         "market.tam": data["tam"], "market.sam": data["sam"], "market.som": data["som"],
-        "market.sources": data["sources"], "market.competitors": data["competitors"],
+        "market.sources": data["sources"], "market.competitors": competitors,
     }
 
 # ---------------------------------------------------------------- bet route handlers
