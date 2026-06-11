@@ -647,10 +647,10 @@ export const SEED_BETS: Bet[] = [
       },
       "Pilot": {
         "start": "2026-04-01",
-        "end": "2026-09-30"
+        "end": null
       },
       "Scale": {
-        "start": "2026-10-01",
+        "start": null,
         "end": null
       }
     },
@@ -726,10 +726,10 @@ export const SEED_BETS: Bet[] = [
     "timeline": {
       "Evaluation": {
         "start": "2026-05-01",
-        "end": "2026-08-31"
+        "end": null
       },
       "Pilot": {
-        "start": "2026-09-01",
+        "start": null,
         "end": null
       },
       "Scale": {
@@ -981,8 +981,8 @@ export const SEED_BETS: Bet[] = [
         "end": "2026-04-30"
       },
       "Scale": {
-        "start": "2026-05-01",
-        "end": "2026-12-31"
+        "start": "2026-04-30",
+        "end": null
       }
     },
     "createdAt": "2025-10-01T08:00:00+00:00"
