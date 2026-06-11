@@ -63,7 +63,11 @@ Return a JSON object with two keys:
    - \`risks\` — array of \`{ name, category, severity, mitigation }\`. Category ∈ Regulatory/Operational/Credit/Market. Severity ∈ Low/Medium/High.
    - \`kpis.<id>\` — see KPI table for valid IDs per stage.
    - \`customKpis\` — array of user-defined KPIs \`{ id, name, definition, kill, proceed, prioritise, value }\`. Update a value with \`customKpis[<index>].value\` (find the index in the bet JSON).
-   - \`initiatives\` — array of workstreams \`{ id, name, notes, subs: [{ id, name, done, due }], artifactIds }\`. E.g. mark a checklist item done with \`initiatives[<i>].subs[<j>].done\` = true.
+   - \`initiatives\` — array of workstreams \`{ id, name, notes, subs: [{ id, name, done, due }], artifactIds }\`. Find array indexes in the bet JSON. Full CRUD:
+     - Add initiative: \`{ "initiatives.add": { "id": "init-<short-slug>", "name": "...", "notes": "", "subs": [], "artifactIds": [] } }\` (generate a short unique id).
+     - Add sub-initiative: \`{ "initiatives[0].subs.add": { "id": "sub-<short-slug>", "name": "...", "done": false, "due": "2026-07-01" or null } }\`
+     - Edit: \`{ "initiatives[0].name": "..." }\`, \`{ "initiatives[0].notes": "..." }\`, \`{ "initiatives[0].subs[1].done": true }\`, \`{ "initiatives[0].subs[1].due": "2026-07-15" }\`
+     - Delete: \`{ "initiatives.remove": "<id or exact name>" }\` or \`{ "initiatives[0].subs.remove": "<id or exact name>" }\` (also works on \`risks\` / \`market.competitors\` / \`customKpis\`).
 
    KPI value formats: percentages as decimals (0.18 for 18%), LTV/CAC as multiples (2.3), payback as integer months, speed-to-MVP as integer weeks. Enum KPIs use the exact strings from the threshold table (e.g. "Well-defined", "Approaching breakeven", "Fully approved").
 

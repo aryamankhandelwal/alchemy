@@ -42,7 +42,7 @@ export interface Risk {
 
 export interface Change {
   path: string
-  op: 'set' | 'add'
+  op: 'set' | 'add' | 'remove'
   before?: unknown
   after: unknown
 }

@@ -105,7 +105,7 @@ Alchemy/
     ├── types/
     │   └── bet.ts                  Bet, Stage, Decision, KpiStatus, Patch, …
     ├── data/
-    │   └── bets.ts                 hard-coded 6 bets from the memo
+    │   └── bets.ts                 seed bets — snapshot of the live portfolio (inserted only when the DB is empty)
     ├── lib/
     │   ├── utils.ts                cn() — clsx + tailwind-merge
     │   ├── kpiSchema.ts            per-stage KPI defs + thresholds + evaluator

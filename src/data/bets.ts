@@ -1,5 +1,5 @@
 // Seed data inserted by server/seed.ts the first time the bets collection is
-// empty. Snapshot of the live portfolio taken 2026-06-10 — these two bets are
+// empty. Snapshot of the live portfolio taken 2026-06-11 — these two bets are
 // the canonical defaults; histories start clean on a fresh seed.
 
 import type { Bet } from '@/types/bet'
@@ -11,10 +11,10 @@ export const SEED_BETS: Bet[] = [
     "description": "Embedded insurance product targeting SME owners. Commission-based model via insurer partnerships. Initially distributed through point of sale (POS) with plans to expand to the online platform.",
     "stage": "Evaluation",
     "decision": "Proceed",
-    "score": 74,
+    "score": 65,
     "nullHypothesis": "SME owners using the Astra app will not attach insurance products at conversion rates that justify the integration and licensing cost.",
     "targetCustomer": "SME owners (1–50 employees) already on the Astra app for banking or lending; UAE-based, primarily trading and services sectors. Initially offered through point of sale (POS) with eventual transition to online platform.",
-    "aiSummary": "SME Insurance is in Pilot with strong demand validation — 38% activation and 12% conversion. LTV/CAC of 1.8x sits just below the >2.0x prioritise threshold for Pilot, driven by current acquisition mix. Top watch items: insurance licensing complexity (mitigated via partner broker) and operational dependency on partner claims flow. Recommendation: continue pilot, push CAC down via embedded distribution before the Scale gate.",
+    "aiSummary": "SME Insurance is an embedded product leveraging Astra's platform to offer insurance to SME owners. The LTV/CAC ratio of 5x meets the proceed threshold, and the market size is substantial. While key demand and market clarity KPIs are yet to be entered, the embedded distribution provides a unique advantage over competitors like Bayzat and CoverB. Mitigation plans for regulatory and operational risks appear sound.\nRecommendation: Proceed",
     "market": {
       "tam": "USD 4.2 billion",
       "sam": "USD 1.2 billion",
@@ -141,7 +141,7 @@ export const SEED_BETS: Bet[] = [
     },
     "timeline": {
       "Evaluation": {
-        "start": "2026-05-27",
+        "start": "2026-05-05",
         "end": null
       },
       "Pilot": {
@@ -152,7 +152,21 @@ export const SEED_BETS: Bet[] = [
         "start": null,
         "end": null
       }
-    }
+    },
+    "customKpis": [
+      {
+        "id": "ltv-cac-f7wi",
+        "name": "LTV / CAC",
+        "definition": "LTV/CAC measures long-term customer value against acquisition cost. It shows how effectively you're spending to acquire profitable, repeat insurance customers.",
+        "kill": "<1x",
+        "proceed": "1-10x",
+        "prioritise": ">10x",
+        "value": "5x"
+      }
+    ],
+    "scoreRationale": "- LTV/CAC is 5x, meeting the 'Proceed' threshold.\n- Several key KPIs (demandSignal, problemSeverity, marketClarity, speedToMvp) are not entered, which is neutral as the bet is in the Evaluation stage.\n- Risks are medium severity with credible mitigation plans, posing a moderate challenge.\n- Market analysis shows significant competition, but the embedded distribution offers a clear edge.",
+    "hiddenKpis": [],
+    "initiatives": []
   },
   {
     "id": "savings-pots-4gai",
@@ -160,10 +174,10 @@ export const SEED_BETS: Bet[] = [
     "description": "Botim Pots is a goal-based savings feature enabling users to ring-fence money within their Botim wallet for specific objectives. It targets existing Botim users to build saving habits. Monetization occurs by cross-selling wealth products as users achieve savings goals, converting transactional users into primary customers.",
     "stage": "Pilot",
     "decision": "Proceed",
-    "score": 30,
+    "score": 68,
     "nullHypothesis": "This fails if a significant portion of Botim users do not consistently use the savings pots to accumulate funds for their stated goals over time.",
     "targetCustomer": "Financially active Botim users in the UAE/MENA region who frequently send/receive remittances, manage household expenses, or aim to save for specific life goals but lack structured savings habits.",
-    "aiSummary": "Botim Pots aims to integrate goal-based savings into Botim, targeting existing users to build financial habits and enable cross-selling opportunities. While the concept addresses a clear market need and defines a target customer, critical performance metrics required for the Pilot stage are entirely absent. This lack of data, coupled with a persisting high regulatory risk and intense competition, significantly hinders a positive assessment at this juncture.\nRecommendation: Kill",
+    "aiSummary": "Savings Pots is a goal-based savings feature within the Botim wallet, targeting existing users to build saving habits and cross-selling wealth products. Early indicators show a promising Conversion Rate (PRIORITISE) and LTV/CAC (PROCEED).\n\nWhile several KPIs are missing, this is expected at the Pilot stage. The high-severity regulatory risk has a mitigation strategy. Competitive pressure is noted but does not undermine the core proposition.\nRecommendation: Proceed",
     "market": {
       "tam": "$35.05B",
       "sam": "$7.01B",
@@ -270,7 +284,10 @@ export const SEED_BETS: Bet[] = [
       "demandSignal": 0.15,
       "problemSeverity": "High",
       "marketClarity": "Partial",
-      "speedToMvp": 12
+      "speedToMvp": 12,
+      "activationRate": 0.25,
+      "conversionRate": 0.16,
+      "ltvCac": 1
     },
     "timeline": {
       "Evaluation": {
@@ -286,6 +303,7 @@ export const SEED_BETS: Bet[] = [
         "end": null
       }
     },
-    "scoreRationale": "- Crucial Pilot stage KPIs (activationRate, conversionRate, retentionD30, ltvCac, riskSignals, operationalLoad) are entirely missing, counting heavily against the score. The absence of data strongly indicates a 'kill' signal for the current stage.\n- One High severity risk remains ('Regulatory compliance for locked funds'), indicating significant unmitigated exposure at this stage.\n- Market analysis shows high competitive pressure from strong, established players, posing a considerable challenge.\n- No attached artifacts weaken the evidence discipline for this bet's evaluation."
+    "scoreRationale": "- Conversion Rate (PRIORITISE) and LTV/CAC (PROCEED) show positive early signs.\n- Activation Rate (PROCEED) is acceptable for the pilot stage.\n- Several KPIs are not yet entered (Retention D30, Risk Signals, Operational Load), which is typical for this early stage and does not heavily penalize the score.\n- High-severity 'Regulatory compliance' risk has a credible mitigation plan, reducing its impact.\n- Market context is secondary and competitive pressure is high but does not detract from the core value proposition.",
+    "initiatives": []
   }
 ]

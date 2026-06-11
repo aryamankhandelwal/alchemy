@@ -122,11 +122,39 @@ def set_path(obj, segments, value):
             cur.append(None)
     cur[last] = value
 
+def remove_from_array(arr, value):
+    """value can be an index, an item id, an item name, or {id}/{name}."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        return [x for i, x in enumerate(arr) if i != value]
+    if isinstance(value, str):
+        key = value
+    elif isinstance(value, dict):
+        key = value.get("id") or value.get("name")
+    else:
+        key = None
+    if key is None:
+        return arr
+    return [x for x in arr if not (isinstance(x, dict) and (x.get("id") == key or x.get("name") == key))]
+
 def apply_patch(bet, patch):
     if not isinstance(patch, dict):
         return bet
     nxt = json.loads(json.dumps(bet))  # deep clone
     for raw_key, value in patch.items():
+        if raw_key.endswith(".remove"):
+            arr_path = raw_key[: -len(".remove")]
+            segments = parse_path(arr_path)
+            parent = nxt
+            for seg in segments[:-1]:
+                if parent is None:
+                    break
+                try:
+                    parent = parent[seg]
+                except (KeyError, IndexError, TypeError):
+                    parent = None
+            if isinstance(parent, dict) and isinstance(parent.get(segments[-1]), list):
+                parent[segments[-1]] = remove_from_array(parent[segments[-1]], value)
+            continue
         if raw_key.endswith(".add"):
             arr_path = raw_key[: -len(".add")]
             segments = parse_path(arr_path)
@@ -164,6 +192,17 @@ def diff_patch(prev_bet, patch):
     for raw_key, value in patch.items():
         if raw_key.endswith(".add"):
             changes.append({"path": raw_key[: -len(".add")], "op": "add", "after": value})
+            continue
+        if raw_key.endswith(".remove"):
+            arr_key = raw_key[: -len(".remove")]
+            arr = get_path(prev_bet, parse_path(arr_key))
+            removed = None
+            if isinstance(arr, list):
+                for i, item in enumerate(arr):
+                    if i == value or (isinstance(item, dict) and (item.get("id") == value or item.get("name") == value)):
+                        removed = item
+                        break
+            changes.append({"path": arr_key, "op": "remove", "before": removed, "after": value})
             continue
         segments = parse_path(raw_key)
         before = get_path(prev_bet, segments)
@@ -310,7 +349,11 @@ Return a JSON object with two keys:
    - `risks` — array of `{ name, category, severity, mitigation }`. Category ∈ Regulatory/Operational/Credit/Market. Severity ∈ Low/Medium/High.
    - `kpis.<id>` — see KPI table for valid IDs per stage.
    - `customKpis` — array of user-defined KPIs `{ id, name, definition, kill, proceed, prioritise, value }`. Update a value with `customKpis[<index>].value` (find the index in the bet JSON).
-   - `initiatives` — array of workstreams `{ id, name, notes, subs: [{ id, name, done, due }], artifactIds }`. E.g. mark a checklist item done with `initiatives[<i>].subs[<j>].done` = true.
+   - `initiatives` — array of workstreams `{ id, name, notes, subs: [{ id, name, done, due }], artifactIds }`. Find array indexes in the bet JSON. Full CRUD:
+     - Add initiative: `{ "initiatives.add": { "id": "init-<short-slug>", "name": "...", "notes": "", "subs": [], "artifactIds": [] } }` (generate a short unique id).
+     - Add sub-initiative: `{ "initiatives[0].subs.add": { "id": "sub-<short-slug>", "name": "...", "done": false, "due": "2026-07-01" or null } }`
+     - Edit: `{ "initiatives[0].name": "..." }`, `{ "initiatives[0].notes": "..." }`, `{ "initiatives[0].subs[1].done": true }`, `{ "initiatives[0].subs[1].due": "2026-07-15" }`
+     - Delete: `{ "initiatives.remove": "<id or exact name>" }` or `{ "initiatives[0].subs.remove": "<id or exact name>" }` (also works on `risks` / `market.competitors` / `customKpis`).
 
    KPI value formats: percentages as decimals (0.18 for 18%), LTV/CAC as multiples (2.3), payback as integer months, speed-to-MVP as integer weeks. Enum KPIs use the exact strings from the threshold table (e.g. "Well-defined", "Approaching breakeven", "Fully approved").
 

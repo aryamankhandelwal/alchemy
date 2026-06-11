@@ -49,10 +49,33 @@ export function applyPatch(bet: Bet, patch: Patch): Bet {
       continue
     }
 
+    if (rawKey.endsWith('.remove')) {
+      const arrPath = rawKey.slice(0, -'.remove'.length)
+      const segments = parsePath(arrPath)
+      const parent: any = segments
+        .slice(0, -1)
+        .reduce((cur: any, seg) => (cur == null ? cur : cur[seg]), next as any)
+      const last = segments[segments.length - 1]
+      const arr = parent?.[last]
+      if (Array.isArray(arr)) parent[last] = removeFromArray(arr, value)
+      continue
+    }
+
     const segments = parsePath(rawKey)
     if (segments.length === 0) continue
     setPath(next as unknown as Mutable, segments, value)
   }
 
   return next
+}
+
+/** value can be an index, an item id, an item name, or { id } / { name }. */
+export function removeFromArray(arr: any[], value: unknown): any[] {
+  if (typeof value === 'number') return arr.filter((_, i) => i !== value)
+  const key =
+    typeof value === 'string'
+      ? value
+      : (value as { id?: string; name?: string })?.id ?? (value as { name?: string })?.name
+  if (key === undefined || key === null) return arr
+  return arr.filter((item) => item?.id !== key && item?.name !== key)
 }

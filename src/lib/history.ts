@@ -31,6 +31,18 @@ export function diffPatch(prevBet: Bet, patch: Patch): Change[] {
       changes.push({ path: arrKey, op: 'add', after: value })
       continue
     }
+    if (rawKey.endsWith('.remove')) {
+      const arrKey = rawKey.slice(0, -'.remove'.length)
+      const arr = getPath(prevBet, parsePath(arrKey))
+      const removed = Array.isArray(arr)
+        ? arr.find(
+            (item: any, i: number) =>
+              i === value || item?.id === value || item?.name === value
+          )
+        : undefined
+      changes.push({ path: arrKey, op: 'remove', before: removed, after: value })
+      continue
+    }
     const segments = parsePath(rawKey)
     const before = getPath(prevBet, segments)
     if (JSON.stringify(before) === JSON.stringify(value)) continue
@@ -91,6 +103,13 @@ export function describeChange(change: Change): { label: string; detail: string 
     return {
       label: `${FIELD_LABELS[path] || path} added`,
       detail: typeof after === 'string' ? after : JSON.stringify(after)
+    }
+  }
+  if (op === 'remove') {
+    const namedBefore = (before as { name?: string }) ?? {}
+    return {
+      label: `${FIELD_LABELS[path] || path} removed`,
+      detail: namedBefore.name || formatVal(after)
     }
   }
   if (path.startsWith('kpis.')) {
