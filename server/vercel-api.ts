@@ -2,16 +2,20 @@
 // API (vite.config.ts middleware). Mongo connects lazily and seeds the default
 // portfolio (src/data/bets.ts + seed/) on first request against an empty DB.
 //
+// Vercel's node builder cannot resolve project TS imports from api/ under
+// "type": "module", so this file is BUNDLED into api/[...path].mjs with
+// esbuild — run `npm run build:api` after changing it or anything it imports.
+//
 // Not available here (pyserver-only, needs Python): PDF/docx generation
 // (/generate-doc, /artifacts/:id/docx) — those return 501 with a hint.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { Binary } from 'mongodb'
 
-import { chatHandler } from '../server/chat'
-import { getDb } from '../server/db'
-import { granolaExtractHandler } from '../server/granolaExtract'
-import { kpiDefinition } from '../server/kpiDef'
+import { chatHandler } from './chat'
+import { getDb } from './db'
+import { granolaExtractHandler } from './granolaExtract'
+import { kpiDefinition } from './kpiDef'
 import {
   createBetHandler,
   deleteBetHandler,
@@ -21,7 +25,28 @@ import {
   runEnrichHandler,
   runResearchHandler,
   runScoreHandler
-} from '../server/routes/bets'
+} from './routes/bets'
+
+async function health() {
+  let mongo = 'skipped (MONGODB_URI not set)'
+  if (process.env.MONGODB_URI) {
+    try {
+      const { bets } = await getDb()
+      mongo = `ok (${await bets.countDocuments()} bets)`
+    } catch (e) {
+      mongo = String((e as Error)?.message ?? e).slice(0, 300)
+    }
+  }
+  return {
+    node: process.version,
+    env: {
+      MONGODB_URI: Boolean(process.env.MONGODB_URI),
+      GEMINI_API_KEY: Boolean(process.env.GEMINI_API_KEY),
+      GEMINI_MODEL: process.env.GEMINI_MODEL ?? null
+    },
+    mongo
+  }
+}
 
 const ARTIFACT_META_KEYS = ['id', 'betId', 'name', 'type', 'size', 'uploadedAt'] as const
 const MAX_ARTIFACT_BYTES = 15 * 1024 * 1024
@@ -82,6 +107,7 @@ async function deleteArtifact(id: string) {
 type Handler = (params: string[], body: any) => Promise<unknown>
 
 const ROUTES: Array<[string, RegExp, Handler]> = [
+  ['GET', /^\/api\/health$/, () => health()],
   ['GET', /^\/api\/bets$/, () => listBets()],
   ['POST', /^\/api\/bets$/, (_p, b) => createBetHandler(b)],
   ['GET', /^\/api\/bets\/([^/]+)$/, (p) => getBet(p[0])],
