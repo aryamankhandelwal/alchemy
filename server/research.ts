@@ -41,6 +41,22 @@ const MarketDataSchema = z.object({
 
 type MarketData = z.infer<typeof MarketDataSchema>
 
+// We ARE Astra Tech — these brands must never be returned as competitors.
+// Belt-and-braces: instructed in the prompt AND filtered out of the result.
+const OWN_BRANDS = ['astra tech', 'astratech', 'botim', 'payby', 'quantix']
+
+export const IDENTITY_BRIEF =
+  `IMPORTANT — who we are: this bet belongs to Astra Tech (UAE), whose products include ` +
+  `Botim, PayBy, and Quantix. These are US — never list Astra Tech, Botim, PayBy, or Quantix ` +
+  `as competitors. Likewise, any company the bet description mentions as a partner, ` +
+  `distribution channel, insurer/bank partner, or supplier is a PARTNER, not a competitor — ` +
+  `exclude them too. Competitors are external companies fighting for the same customers.`
+
+function isOwnBrand(name: string): boolean {
+  const n = name.toLowerCase()
+  return OWN_BRANDS.some((b) => n.includes(b))
+}
+
 // JSON-Schema for Gemini's responseSchema. Mirrors MarketDataSchema; Gemini
 // will refuse the call if these drift apart in shape.
 const RESPONSE_SCHEMA = {
@@ -112,6 +128,7 @@ export async function researchMarket(bet: Bet): Promise<Patch> {
     `Research current market data for: ${bet.name}.\n` +
     `${bet.description}\n` +
     (bet.targetCustomer ? `Target customer: ${bet.targetCustomer}\n` : '') +
+    `\n${IDENTITY_BRIEF}\n` +
     `\nFind:\n` +
     `- TAM, SAM, SOM expressed as REVENUE POOLS in USD (annual addressable revenue, not user counts ` +
     `or transaction volume). Each value must be a bare currency string like "$4.2B" or "$850M" — ` +
@@ -161,6 +178,7 @@ export async function researchMarket(bet: Bet): Promise<Patch> {
   }
 
   const data: MarketData = MarketDataSchema.parse(parsed)
+  data.competitors = data.competitors.filter((c) => !isOwnBrand(c.name))
 
   return {
     'market.tam': data.tam,

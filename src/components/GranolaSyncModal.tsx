@@ -103,7 +103,7 @@ export function GranolaSyncModal({ open, onClose, onApply }: GranolaSyncModalPro
           <DialogDescription className="text-xs leading-relaxed">
             {result
               ? 'The AI extracted these proposals from the transcript. Nothing is saved until you apply — remove anything that doesn’t belong.'
-              : 'Paste a meeting transcript from your notes app (e.g. Granola — R&D Squad folder). The AI will pull out bet updates, stage moves, KPI changes and new ideas for your review.'}
+              : 'Paste a meeting transcript from your notes app. The AI will pull out bet updates, stage moves, KPI changes and new ideas for your review.'}
           </DialogDescription>
         </DialogHeader>
 
