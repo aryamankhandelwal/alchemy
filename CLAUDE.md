@@ -95,6 +95,7 @@ Alchemy/
 ├── server/
 │   ├── chat.ts                     /api/chat handler (Vercel AI SDK)
 │   ├── env.ts                      hot-reloading .env reader (model/key changes apply without restart)
+│   ├── kpiDef.ts                   /api/kpi-def — AI definition for a user-added custom KPI
 │   ├── score.ts                    /api/score/:id — AI re-scores a bet from its full state
 │   └── pyserver.py                 no-node fallback server (see "Run" section)
 └── src/
@@ -112,6 +113,7 @@ Alchemy/
     │   ├── systemPrompt.ts         builds AI system prompt from memo + bet
     │   ├── applyPatch.ts           merges AI's JSON patch into a bet (immutable)
     │   ├── createBet.ts            factory for bets added via AddBetModal
+    │   ├── customKpi.ts            best-effort evaluator for user-defined KPIs
     │   └── history.ts              diff a patch into Change[] + describe entries
     └── components/
         ├── Header.tsx              ⬡ Alchemy wordmark + Board/Timeline view toggle + "Add bet" button
@@ -120,12 +122,13 @@ Alchemy/
         ├── TimelineView.tsx        Gantt view: per-bet stage bars on a 12-month axis with year nav (default 2026)
         ├── KanbanCell.tsx          one droppable cell
         ├── BetCard.tsx             draggable Card with badges + KPI dots + score
-        ├── BetModal.tsx            Dialog + Tabs shell (Summary / Market / KPIs / Risk / Artifacts / Projections / History)
+        ├── BetModal.tsx            Dialog + Tabs shell (Summary / Initiatives / Market / KPIs / Risk / Artifacts / Projections / History)
         ├── AddBetModal.tsx         Dialog form for new bets
         ├── ChatPanel.tsx           AI chat (right side of BetModal)
         ├── bet-badges.tsx          StageBadge, DecisionBadge, KPIDot, ScorePill, scoreTone
         ├── modal/                  tab content for BetModal
         │   ├── SummarySection.tsx
+        │   ├── InitiativesSection.tsx  collapsible workstreams: checklists + due dates + notes + tagged artifacts
         │   ├── MarketSection.tsx
         │   ├── RiskSection.tsx
         │   ├── KPISection.tsx

@@ -21,7 +21,8 @@ export function BetCard({ bet, onClick, isDragOverlay = false }: BetCardProps) {
   })
 
   const defs = getKpiDefs(bet.stage)
-  const kpiKeys = Object.keys(defs).slice(0, 3)
+  const hidden = new Set(bet.hiddenKpis ?? [])
+  const kpiKeys = Object.keys(defs).filter((k) => !hidden.has(k)).slice(0, 3)
   const dots = kpiKeys.map((k) => evaluateKpi(bet.stage, k, bet.kpis?.[k]))
   const stageStart = bet.timeline?.[bet.stage]?.start
   // Flag bets that have been sitting in their current stage for over ~2 months.

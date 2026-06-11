@@ -62,6 +62,8 @@ Return a JSON object with two keys:
    - \`market.competitors\` — array of \`{ name, strength, weakness, threat }\`. Threat ∈ Low/Medium/High.
    - \`risks\` — array of \`{ name, category, severity, mitigation }\`. Category ∈ Regulatory/Operational/Credit/Market. Severity ∈ Low/Medium/High.
    - \`kpis.<id>\` — see KPI table for valid IDs per stage.
+   - \`customKpis\` — array of user-defined KPIs \`{ id, name, definition, kill, proceed, prioritise, value }\`. Update a value with \`customKpis[<index>].value\` (find the index in the bet JSON).
+   - \`initiatives\` — array of workstreams \`{ id, name, notes, subs: [{ id, name, done, due }], artifactIds }\`. E.g. mark a checklist item done with \`initiatives[<i>].subs[<j>].done\` = true.
 
    KPI value formats: percentages as decimals (0.18 for 18%), LTV/CAC as multiples (2.3), payback as integer months, speed-to-MVP as integer weeks. Enum KPIs use the exact strings from the threshold table (e.g. "Well-defined", "Approaching breakeven", "Fully approved").
 

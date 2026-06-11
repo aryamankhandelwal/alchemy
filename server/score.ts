@@ -30,7 +30,9 @@ export async function scoreBet(bet: Bet): Promise<ScoreResult> {
   const defs = getKpiDefs(bet.stage)
   // Pre-evaluate each KPI with the same logic as the UI dots so the model
   // never re-derives band boundaries (it gets edge cases like "exactly 5%" wrong).
-  const kpiList = Object.entries(defs)
+  const hidden = new Set(bet.hiddenKpis ?? [])
+  const kpiLines = Object.entries(defs)
+    .filter(([key]) => !hidden.has(key))
     .map(([key, d]) => {
       const v = bet.kpis?.[key]
       const verdict =
@@ -39,13 +41,21 @@ export async function scoreBet(bet: Bet): Promise<ScoreResult> {
           : `${d.formatValue(v)} → ${d.evaluate(v).toUpperCase()}`
       return `  - ${key} (${d.label}): ${verdict}`
     })
-    .join('\n')
+  for (const c of bet.customKpis ?? []) {
+    const val = c.value === undefined || c.value === null || c.value === '' ? 'NOT ENTERED' : String(c.value)
+    kpiLines.push(
+      `  - ${c.name} (custom, judge yourself): value ${val}. ` +
+        `Bands: kill ${c.kill} | proceed ${c.proceed} | prioritise ${c.prioritise}`
+    )
+  }
+  const kpiList = kpiLines.join('\n')
 
   // Strip prior scoring outputs (aiSummary/scoreRationale/score) and raw kpis: they are
   // what we're regenerating — leaving them in makes the model parrot stale verdicts.
   const {
     history: _history,
     kpis: _kpis,
+    customKpis: _customKpis,
     aiSummary: _aiSummary,
     scoreRationale: _scoreRationale,
     score: _score,

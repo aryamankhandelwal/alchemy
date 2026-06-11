@@ -20,7 +20,9 @@ import base64
 import json
 import mimetypes
 import os
+import platform
 import re
+import subprocess
 import time
 import random
 import string
@@ -307,6 +309,8 @@ Return a JSON object with two keys:
    - `market.competitors` — array of `{ name, strength, weakness, threat }`. Threat ∈ Low/Medium/High.
    - `risks` — array of `{ name, category, severity, mitigation }`. Category ∈ Regulatory/Operational/Credit/Market. Severity ∈ Low/Medium/High.
    - `kpis.<id>` — see KPI table for valid IDs per stage.
+   - `customKpis` — array of user-defined KPIs `{ id, name, definition, kill, proceed, prioritise, value }`. Update a value with `customKpis[<index>].value` (find the index in the bet JSON).
+   - `initiatives` — array of workstreams `{ id, name, notes, subs: [{ id, name, done, due }], artifactIds }`. E.g. mark a checklist item done with `initiatives[<i>].subs[<j>].done` = true.
 
    KPI value formats: percentages as decimals (0.18 for 18%), LTV/CAC as multiples (2.3), payback as integer months, speed-to-MVP as integer weeks. Enum KPIs use the exact strings from the threshold table (e.g. "Well-defined", "Approaching breakeven", "Fully approved").
 
@@ -666,8 +670,11 @@ def score_bet(bet):
     # Pre-evaluate each KPI with the same logic as the UI dots so the model
     # never re-derives band boundaries (it gets edges like "exactly 5%" wrong).
     kpis = bet.get("kpis") or {}
+    hidden = set(bet.get("hiddenKpis") or [])
     lines = []
     for k, d in KPI_SCHEMA.get(stage, {}).items():
+        if k in hidden:
+            continue
         v = kpis.get(k)
         if v is None or v == "":
             verdict = "NOT ENTERED"
@@ -675,11 +682,18 @@ def score_bet(bet):
             band = KPI_EVAL.get(stage, {}).get(k, lambda _v: "Proceed")(v)
             verdict = f"{format_kpi(d['format'], v)} -> {band.upper()}"
         lines.append(f"  - {k} ({d['label']}): {verdict}")
+    for c in bet.get("customKpis") or []:
+        v = c.get("value")
+        val = "NOT ENTERED" if v in (None, "") else str(v)
+        lines.append(
+            f"  - {c.get('name')} (custom, judge yourself): value {val}. "
+            f"Bands: kill {c.get('kill')} | proceed {c.get('proceed')} | prioritise {c.get('prioritise')}"
+        )
     kpi_list = "\n".join(lines)
     # Strip prior scoring outputs (aiSummary/scoreRationale/score) and raw kpis: they are
     # what we're regenerating — leaving them in makes the model parrot stale verdicts.
     bet_slim = {k: v for k, v in bet.items()
-                if k not in ("history", "kpis", "aiSummary", "scoreRationale", "score")}
+                if k not in ("history", "kpis", "customKpis", "aiSummary", "scoreRationale", "score")}
     prompt = (
         "You are the investment-committee scorer inside Alchemy, Astra Tech's New Horizons "
         f"portfolio dashboard (UAE / MENA fintech). Score this bet 0-100 on how strong it looks "
@@ -726,6 +740,22 @@ def score_bet(bet):
     data = json.loads(raw)
     score = max(0, min(100, int(round(float(data["score"])))))
     return score, str(data.get("rationale", "")), str(data.get("aiSummary", ""))
+
+def kpi_def_handler(body):
+    name = (body.get("name") or "").strip()
+    bet = body.get("bet") or {}
+    if not name:
+        raise HttpError(400, "name is required")
+    prompt = (
+        f'Define the KPI "{name}" in 1-2 plain-language sentences (max 35 words): what it measures '
+        f"and why it matters, in the context of this product bet at {bet.get('stage', 'Evaluation')} stage:\n"
+        f"{bet.get('name', '')} — {bet.get('description', '')}\n"
+        "Return only the definition text, no preamble, no markdown."
+    )
+    text = gemini_generate([{"role": "user", "parts": [{"text": prompt}]}]).strip()
+    if not text:
+        raise HttpError(502, "Gemini returned an empty definition.")
+    return {"definition": text}
 
 def run_score_handler(bet_id):
     bet = get_bet(bet_id)
@@ -793,6 +823,7 @@ ROUTES = [
     ("POST", re.compile(r"^/api/bets/([^/]+)/artifacts$"), lambda p, b: upload_artifact_handler(p[0], b)),
     ("DELETE", re.compile(r"^/api/artifacts/([^/]+)$"), lambda p, b: delete_artifact_handler(p[0])),
     ("POST", re.compile(r"^/api/score/([^/]+)$"), lambda p, b: run_score_handler(p[0])),
+    ("POST", re.compile(r"^/api/kpi-def$"), lambda p, b: kpi_def_handler(b)),
 ]
 
 ARTIFACT_FILE_RE = re.compile(r"^/api/artifacts/([^/]+)/file$")
@@ -902,7 +933,86 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(404, {"error": "no route"})
 
 
+# ---------------------------------------------------------------- frontend rebuild (esbuild)
+SRC = os.path.join(ROOT, "src")
+
+
+def _esbuild_bin():
+    machine = platform.machine().lower()
+    arch = "arm64" if machine in ("arm64", "aarch64") else "x64" if machine in ("amd64", "x86_64") else None
+    if not arch:
+        return None
+    system = platform.system().lower()
+    if system == "windows":
+        plat, name = "win32", "esbuild.exe"
+    elif system == "darwin":
+        plat, name = "darwin", "esbuild"
+    elif system == "linux":
+        plat, name = "linux", "esbuild"
+    else:
+        return None
+    path = os.path.join(ROOT, "node_modules", "@esbuild", f"{plat}-{arch}", name)
+    return path if os.path.isfile(path) else None
+
+
+def _dist_bundle_path():
+    index_path = os.path.join(DIST, "index.html")
+    if os.path.isfile(index_path):
+        with open(index_path, encoding="utf-8") as fh:
+            m = re.search(r'src="/assets/([^"]+\.js)"', fh.read())
+        if m:
+            return os.path.join(DIST, "assets", m.group(1))
+    return os.path.join(DIST, "assets", "index-app.js")
+
+
+def _latest_src_mtime():
+    latest = 0.0
+    for dirpath, _, files in os.walk(SRC):
+        for name in files:
+            if name.endswith((".ts", ".tsx")):
+                latest = max(latest, os.path.getmtime(os.path.join(dirpath, name)))
+    return latest
+
+
+def maybe_rebuild_frontend():
+    """Rebuild dist/ with esbuild when src/ is newer than the bundled JS."""
+    if env("SKIP_FRONTEND_REBUILD", "").lower() in ("1", "true", "yes"):
+        return
+    bundle = _dist_bundle_path()
+    src_mtime = _latest_src_mtime()
+    if src_mtime == 0:
+        return
+    if os.path.isfile(bundle) and src_mtime <= os.path.getmtime(bundle):
+        return
+    esbuild = _esbuild_bin()
+    if not esbuild:
+        print("[alchemy] dist/ is stale — esbuild binary not found; run npm run build")
+        return
+    os.makedirs(os.path.dirname(bundle), exist_ok=True)
+    print("[alchemy] rebuilding frontend (src newer than dist)...")
+    cmd = [
+        esbuild,
+        os.path.join(SRC, "main.tsx"),
+        "--bundle",
+        "--format=esm",
+        "--jsx=automatic",
+        "--minify",
+        '--define:process.env.NODE_ENV="production"',
+        "--alias:@=./src",
+        "--loader:.svg=dataurl",
+        f"--outfile={bundle}",
+    ]
+    try:
+        subprocess.run(cmd, cwd=ROOT, check=True, capture_output=True, text=True)
+        print(f"[alchemy] frontend rebuilt → {os.path.relpath(bundle, ROOT)}")
+    except subprocess.CalledProcessError as e:
+        print(f"[alchemy] frontend rebuild failed: {e.stderr or e.stdout or e}")
+    except OSError as e:
+        print(f"[alchemy] frontend rebuild failed: {e}")
+
+
 if __name__ == "__main__":
+    maybe_rebuild_frontend()
     print(f"[alchemy] no-node backend serving {DIST} on http://localhost:{PORT}")
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     server.serve_forever()

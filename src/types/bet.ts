@@ -65,6 +65,37 @@ export interface PhaseDates {
 
 export type Timeline = Record<Stage, PhaseDates>
 
+/** Checklist item inside an initiative. */
+export interface SubInitiative {
+  id: string
+  name: string
+  done: boolean
+  /** ISO date (YYYY-MM-DD) or null. */
+  due: string | null
+}
+
+/** A workstream on the bet: checklist of sub-initiatives + notes + tagged artifacts. */
+export interface Initiative {
+  id: string
+  name: string
+  notes: string
+  subs: SubInitiative[]
+  /** ids of artifacts (uploads) tagged to this initiative */
+  artifactIds: string[]
+}
+
+/** User-defined KPI added from the KPIs tab; lives on the bet, not the stage schema. */
+export interface CustomKpi {
+  id: string
+  name: string
+  /** AI-pulled one-liner explaining the metric. */
+  definition: string
+  kill: string
+  proceed: string
+  prioritise: string
+  value: KpiValue | null
+}
+
 export interface Bet {
   id: string
   name: string
@@ -80,6 +111,12 @@ export interface Bet {
   market: Market
   risks: Risk[]
   kpis: Record<string, KpiValue>
+  /** Bet-specific KPIs added by users (rendered after the stage schema rows). */
+  customKpis?: CustomKpi[]
+  /** Workstreams shown in the Initiatives tab. */
+  initiatives?: Initiative[]
+  /** Stage-schema KPI keys the user has removed from this bet's table. */
+  hiddenKpis?: string[]
   timeline?: Timeline
   /** ISO timestamp set at creation — anchors the bet's lifecycle on the Gantt view. */
   createdAt?: string

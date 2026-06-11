@@ -38,6 +38,11 @@ export const api = {
   research: (id: string) => request<Bet>(`/api/research/${id}`, { method: 'POST' }),
   enrich: (id: string) => request<Bet>(`/api/enrich/${id}`, { method: 'POST' }),
   score: (id: string) => request<Bet>(`/api/score/${id}`, { method: 'POST' }),
+  kpiDefinition: (name: string, bet: { name: string; description: string; stage: string }) =>
+    request<{ definition: string }>('/api/kpi-def', {
+      method: 'POST',
+      body: JSON.stringify({ name, bet })
+    }),
   listArtifacts: (betId: string) => request<Artifact[]>(`/api/bets/${betId}/artifacts`),
   uploadArtifact: (betId: string, file: { name: string; type: string; data: string }) =>
     request<Artifact>(`/api/bets/${betId}/artifacts`, {

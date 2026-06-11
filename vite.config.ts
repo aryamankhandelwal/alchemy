@@ -4,6 +4,7 @@ import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 
 import { chatHandler } from './server/chat'
+import { kpiDefinition } from './server/kpiDef'
 import {
   createBetHandler,
   deleteBetHandler,
@@ -59,6 +60,11 @@ const routes: Route[] = [
     method: 'POST',
     pattern: /^\/api\/score\/([^/]+)$/,
     handler: ({ params }) => runScoreHandler(params[0])
+  },
+  {
+    method: 'POST',
+    pattern: /^\/api\/kpi-def$/,
+    handler: async ({ body }) => ({ definition: await kpiDefinition(body.name, body.bet) })
   },
   {
     method: 'POST',
