@@ -10635,6 +10635,14 @@ var require_kill_cursors = __commonJS({
   }
 });
 
+// server/optional-dep-stub.cjs
+var require_optional_dep_stub = __commonJS({
+  "server/optional-dep-stub.cjs"() {
+    "use strict";
+    throw new Error("optional dependency not available (stubbed at bundle time)");
+  }
+});
+
 // node_modules/mongodb/lib/deps.js
 var require_deps = __commonJS({
   "node_modules/mongodb/lib/deps.js"(exports) {
@@ -10666,7 +10674,7 @@ var require_deps = __commonJS({
     function getKerberos() {
       let kerberos;
       try {
-        kerberos = __require("kerberos");
+        kerberos = require_optional_dep_stub();
       } catch (error) {
         kerberos = makeErrorModule(new error_1.MongoMissingDependencyError("Optional module `kerberos` not found. Please install it to enable kerberos authentication", { cause: error, dependencyName: "kerberos" }));
       }
@@ -10675,7 +10683,7 @@ var require_deps = __commonJS({
     function getZstdLibrary() {
       let ZStandard;
       try {
-        ZStandard = __require("@mongodb-js/zstd");
+        ZStandard = require_optional_dep_stub();
       } catch (error) {
         ZStandard = makeErrorModule(new error_1.MongoMissingDependencyError("Optional module `@mongodb-js/zstd` not found. Please install it to enable zstd compression", { cause: error, dependencyName: "zstd" }));
       }
@@ -10683,7 +10691,7 @@ var require_deps = __commonJS({
     }
     function getAwsCredentialProvider() {
       try {
-        const credentialProvider = __require("@aws-sdk/credential-providers");
+        const credentialProvider = require_optional_dep_stub();
         return credentialProvider;
       } catch (error) {
         return makeErrorModule(new error_1.MongoMissingDependencyError("Optional module `@aws-sdk/credential-providers` not found. Please install it to enable getting aws credentials via the official sdk.", { cause: error, dependencyName: "@aws-sdk/credential-providers" }));
@@ -10691,7 +10699,7 @@ var require_deps = __commonJS({
     }
     function getGcpMetadata() {
       try {
-        const credentialProvider = __require("gcp-metadata");
+        const credentialProvider = require_optional_dep_stub();
         return credentialProvider;
       } catch (error) {
         return makeErrorModule(new error_1.MongoMissingDependencyError("Optional module `gcp-metadata` not found. Please install it to enable getting gcp credentials via the official sdk.", { cause: error, dependencyName: "gcp-metadata" }));
@@ -10699,7 +10707,7 @@ var require_deps = __commonJS({
     }
     function getSnappy() {
       try {
-        const value = __require("snappy");
+        const value = require_optional_dep_stub();
         return value;
       } catch (error) {
         const kModuleError = new error_1.MongoMissingDependencyError("Optional module `snappy` not found. Please install it to enable snappy compression", { cause: error, dependencyName: "snappy" });
@@ -10708,7 +10716,7 @@ var require_deps = __commonJS({
     }
     function getSocks() {
       try {
-        const value = __require("socks");
+        const value = require_optional_dep_stub();
         return value;
       } catch (error) {
         const kModuleError = new error_1.MongoMissingDependencyError("Optional module `socks` not found. Please install it to connections over a SOCKS5 proxy", { cause: error, dependencyName: "socks" });
@@ -10719,7 +10727,7 @@ var require_deps = __commonJS({
     function loadAws4() {
       let aws4;
       try {
-        aws4 = __require("aws4");
+        aws4 = require_optional_dep_stub();
       } catch (error) {
         aws4 = makeErrorModule(new error_1.MongoMissingDependencyError("Optional module `aws4` not found. Please install it to enable AWS authentication", { cause: error, dependencyName: "aws4" }));
       }
@@ -10728,7 +10736,7 @@ var require_deps = __commonJS({
     function getMongoDBClientEncryption() {
       let mongodbClientEncryption = null;
       try {
-        mongodbClientEncryption = __require("mongodb-client-encryption");
+        mongodbClientEncryption = require_optional_dep_stub();
       } catch (error) {
         const kModuleError = new error_1.MongoMissingDependencyError("Optional module `mongodb-client-encryption` not found. Please install it to use auto encryption or ClientEncryption.", { cause: error, dependencyName: "mongodb-client-encryption" });
         return { kModuleError };
@@ -43101,7 +43109,7 @@ var require_computeclient = __commonJS({
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Compute = void 0;
     var gaxios_1 = require_src2();
-    var gcpMetadata = __require("gcp-metadata");
+    var gcpMetadata = require_optional_dep_stub();
     var oauth2client_1 = require_oauth2client();
     var Compute = class extends oauth2client_1.OAuth2Client {
       serviceAccountEmail;
@@ -43240,7 +43248,7 @@ var require_envDetect = __commonJS({
     exports.GCPEnv = void 0;
     exports.clear = clear;
     exports.getEnv = getEnv2;
-    var gcpMetadata = __require("gcp-metadata");
+    var gcpMetadata = require_optional_dep_stub();
     var GCPEnv;
     (function(GCPEnv2) {
       GCPEnv2["APP_ENGINE"] = "APP_ENGINE";
@@ -47109,7 +47117,7 @@ var require_googleauth = __commonJS({
     var child_process_1 = __require("child_process");
     var fs4 = __require("fs");
     var gaxios_1 = require_src2();
-    var gcpMetadata = __require("gcp-metadata");
+    var gcpMetadata = require_optional_dep_stub();
     var os = __require("os");
     var path3 = __require("path");
     var crypto_1 = require_crypto3();
@@ -48182,7 +48190,7 @@ var require_src4 = __commonJS({
     Object.defineProperty(exports, "GoogleAuth", { enumerable: true, get: function() {
       return googleauth_1.GoogleAuth;
     } });
-    exports.gcpMetadata = __require("gcp-metadata");
+    exports.gcpMetadata = require_optional_dep_stub();
     exports.gaxios = require_src2();
     var authclient_1 = require_authclient();
     Object.defineProperty(exports, "AuthClient", { enumerable: true, get: function() {
