@@ -10,7 +10,12 @@ import { Binary, type Collection, type Db } from 'mongodb'
 import { SEED_BETS } from '../src/data/bets'
 import type { Bet } from '../src/types/bet'
 
-const SEED_DIR = path.resolve(__dirname, '../seed')
+// Bundlers (Vercel) relocate __dirname; fall back to the project cwd.
+const SEED_DIR_CANDIDATES = [
+  path.resolve(__dirname, '../seed'),
+  path.resolve(process.cwd(), 'seed')
+]
+const SEED_DIR = SEED_DIR_CANDIDATES.find((p) => fs.existsSync(p)) ?? SEED_DIR_CANDIDATES[0]
 
 export async function seedIfEmpty(bets: Collection<Bet>): Promise<void> {
   const count = await bets.countDocuments()
