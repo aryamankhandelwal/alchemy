@@ -124,6 +124,7 @@ Alchemy/
         ├── BetCard.tsx             draggable Card with badges + KPI dots + score
         ├── BetModal.tsx            Dialog + Tabs shell (Summary / Initiatives / Market / KPIs / Risk / Artifacts / Projections / History)
         ├── AddBetModal.tsx         Dialog form for new bets
+        ├── KpiReviewModal.tsx      post-create approval of AI-suggested KPIs (edit/remove/add before they hit the bet)
         ├── ChatPanel.tsx           AI chat (right side of BetModal)
         ├── bet-badges.tsx          StageBadge, DecisionBadge, KPIDot, ScorePill, scoreTone
         ├── modal/                  tab content for BetModal

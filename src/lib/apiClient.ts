@@ -2,7 +2,7 @@
 // callers can `try/catch` and surface errors via toast.
 
 import type { CreateBetInput } from '@/lib/createBet'
-import type { Artifact, Bet, HistorySource, Patch } from '@/types/bet'
+import type { Artifact, Bet, HistorySource, KpiValue, Patch } from '@/types/bet'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -36,7 +36,10 @@ export const api = {
     request<Bet>(`/api/bets/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteBet: (id: string) => request<{ id: string }>(`/api/bets/${id}`, { method: 'DELETE' }),
   research: (id: string) => request<Bet>(`/api/research/${id}`, { method: 'POST' }),
-  enrich: (id: string) => request<Bet>(`/api/enrich/${id}`, { method: 'POST' }),
+  enrich: (id: string) =>
+    request<{ bet: Bet; suggestedKpis: Record<string, KpiValue> }>(`/api/enrich/${id}`, {
+      method: 'POST'
+    }),
   score: (id: string) => request<Bet>(`/api/score/${id}`, { method: 'POST' }),
   kpiDefinition: (name: string, bet: { name: string; description: string; stage: string }) =>
     request<{ definition: string }>('/api/kpi-def', {

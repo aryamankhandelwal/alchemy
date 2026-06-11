@@ -13,10 +13,11 @@ export async function kpiDefinition(name: string, bet: Pick<Bet, 'name' | 'descr
   const ai = new GoogleGenAI({ apiKey })
 
   const prompt =
-    `Define the KPI "${name}" in 1-2 plain-language sentences (max 35 words): what it measures ` +
-    `and why it matters, in the context of this product bet at ${bet.stage} stage:\n` +
-    `${bet.name} — ${bet.description}\n` +
-    `Return only the definition text, no preamble, no markdown.`
+    `Define the KPI "${name}" as ONE ultra-short fragment, 8 words max — a table caption, ` +
+    `not a sentence. Good examples: "Time to first usable version." / "Customer value vs ` +
+    `acquisition cost." / "% of users completing core action." No "this measures", no "why it ` +
+    `matters", no preamble, no markdown. Context (do not mention it): ${bet.name} at ` +
+    `${bet.stage} stage.`
 
   const result = await ai.models.generateContent({ model, contents: prompt })
   const text = (result.text ?? '').trim()

@@ -76,14 +76,18 @@ export async function runResearchHandler(id: string): Promise<Bet> {
   return patchBetHandler(id, { patch, source: 'ai', note: 'Market research refresh' })
 }
 
-export async function runEnrichHandler(id: string): Promise<Bet> {
+export async function runEnrichHandler(
+  id: string
+): Promise<{ bet: Bet; suggestedKpis: Record<string, string | number> }> {
   const col = await getBetsCollection()
   const doc = await col.findOne({ id })
   if (!doc) throw Object.assign(new Error(`bet ${id} not found`), { status: 404 })
   const bet = stripId(doc) as Bet
 
-  const patch = await enrichBet(bet)
-  return patchBetHandler(id, { patch, source: 'ai', note: 'Initial AI enrichment' })
+  // KPI values are returned as suggestions for user approval, not auto-applied.
+  const { patch, suggestedKpis } = await enrichBet(bet)
+  const updated = await patchBetHandler(id, { patch, source: 'ai', note: 'Initial AI enrichment' })
+  return { bet: updated, suggestedKpis }
 }
 
 export async function runScoreHandler(id: string): Promise<Bet> {

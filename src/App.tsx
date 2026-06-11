@@ -10,6 +10,7 @@ import { AddBetModal } from '@/components/AddBetModal'
 import { BetModal } from '@/components/BetModal'
 import { Header, type View } from '@/components/Header'
 import { KanbanGrid } from '@/components/KanbanGrid'
+import { KpiReviewModal, type KpiReview } from '@/components/KpiReviewModal'
 import { SummaryBar } from '@/components/SummaryBar'
 import { TimelineView } from '@/components/TimelineView'
 import { Toaster } from '@/components/ui/sonner'
@@ -20,6 +21,7 @@ export default function App() {
   const [addOpen, setAddOpen] = useState(false)
   const [view, setView] = useState<View>('kanban')
   const [creating, setCreating] = useState(false)
+  const [kpiReview, setKpiReview] = useState<KpiReview | null>(null)
 
   useEffect(() => {
     api
@@ -106,10 +108,13 @@ export default function App() {
       setBets((prev) => (prev ? [...prev, skeleton] : [skeleton]))
 
       // Synchronous text enrichment so the card has substance before the modal closes.
-      let enriched: Bet | null = null
+      // KPI values come back as suggestions — the user approves them in KpiReviewModal.
       try {
-        enriched = await api.enrich(skeleton.id)
-        setBets((prev) => (prev ? prev.map((b) => (b.id === enriched!.id ? enriched! : b)) : prev))
+        const { bet: enriched, suggestedKpis } = await api.enrich(skeleton.id)
+        setBets((prev) => (prev ? prev.map((b) => (b.id === enriched.id ? enriched : b)) : prev))
+        if (Object.keys(suggestedKpis).length > 0) {
+          setKpiReview({ bet: enriched, suggestions: suggestedKpis })
+        }
       } catch (e) {
         toast.error(`Enrichment failed: ${(e as Error).message}`)
       }
@@ -198,6 +203,11 @@ export default function App() {
         loading={creating}
         onClose={() => setAddOpen(false)}
         onCreate={handleCreate}
+      />
+      <KpiReviewModal
+        review={kpiReview}
+        onClose={() => setKpiReview(null)}
+        onApprove={(id, patch) => handlePatch(id, patch, 'system', 'KPIs approved by user')}
       />
       <Toaster />
     </div>

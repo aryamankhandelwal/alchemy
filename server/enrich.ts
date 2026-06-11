@@ -73,7 +73,13 @@ function buildResponseSchema(kpiKeys: string[]) {
   }
 }
 
-export async function enrichBet(bet: Bet): Promise<Patch> {
+export interface EnrichResult {
+  patch: Patch
+  /** KPI values proposed by the AI — surfaced for user approval, never auto-applied. */
+  suggestedKpis: Record<string, string | number>
+}
+
+export async function enrichBet(bet: Bet): Promise<EnrichResult> {
   const apiKey = envVar('GEMINI_API_KEY')
   if (!apiKey) throw new Error('GEMINI_API_KEY is not set.')
   const model = envVar('GEMINI_MODEL') || 'gemini-2.5-flash'
@@ -152,8 +158,9 @@ export async function enrichBet(bet: Bet): Promise<Patch> {
     risks: data.risks,
     aiSummary: data.aiSummary
   }
+  const suggestedKpis: Record<string, string | number> = {}
   for (const [k, v] of Object.entries(data.kpis)) {
-    if (defs[k]) patch[`kpis.${k}`] = v
+    if (defs[k]) suggestedKpis[k] = v
   }
-  return patch
+  return { patch, suggestedKpis }
 }

@@ -7,11 +7,18 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 import { api } from '@/lib/apiClient'
 import { evaluateCustomKpi } from '@/lib/customKpi'
 import { cn } from '@/lib/utils'
-import { evaluateKpi, formatKpiValue, getKpiDefs } from '@/lib/kpiSchema'
-import type { Bet, CustomKpi, HistorySource, KpiStatus, Patch } from '@/types/bet'
+import { evaluateKpi, formatKpiValue, getKpiDefs, type KpiDefinition } from '@/lib/kpiSchema'
+import type { Bet, CustomKpi, HistorySource, KpiStatus, KpiValue, Patch } from '@/types/bet'
 
 const STATUS_TONE: Record<KpiStatus, string> = {
   Prioritise: 'text-success',
@@ -34,6 +41,8 @@ interface Row {
   thresholds: string
   status: KpiStatus | null
   custom: boolean
+  def?: KpiDefinition
+  rawValue: KpiValue | null
 }
 
 const EMPTY_FORM = { name: '', kill: '', proceed: '', prioritise: '', value: '' }
@@ -54,7 +63,9 @@ export function KPISection({ bet, onPatch }: KPISectionProps) {
       formatted: formatKpiValue(bet.stage, k, bet.kpis?.[k]),
       thresholds: defs[k].thresholds,
       status: evaluateKpi(bet.stage, k, bet.kpis?.[k]),
-      custom: false
+      custom: false,
+      def: defs[k],
+      rawValue: bet.kpis?.[k] ?? null
     }))
 
   for (const c of bet.customKpis ?? []) {
@@ -65,8 +76,26 @@ export function KPISection({ bet, onPatch }: KPISectionProps) {
       formatted: c.value === null || c.value === undefined || c.value === '' ? '—' : String(c.value),
       thresholds: `${c.kill} kill · ${c.proceed} proceed · ${c.prioritise} prioritise`,
       status: evaluateCustomKpi(c),
-      custom: true
+      custom: true,
+      rawValue: c.value ?? null
     })
+  }
+
+  const commitValue = (row: Row, value: KpiValue | null) => {
+    if (row.custom) {
+      onPatch(
+        bet.id,
+        {
+          customKpis: (bet.customKpis ?? []).map((c) =>
+            c.id === row.key ? { ...c, value: value === null ? null : String(value) } : c
+          )
+        },
+        'system',
+        `Updated KPI ${row.label}`
+      )
+    } else {
+      onPatch(bet.id, { [`kpis.${row.key}`]: value }, 'system', `Updated KPI ${row.label}`)
+    }
   }
 
   const removeSchemaKpi = (key: string, label: string) => {
@@ -165,7 +194,7 @@ export function KPISection({ bet, onPatch }: KPISectionProps) {
                 </div>
                 <div className="text-[10px] text-muted-foreground/70 mt-0.5">{r.sub}</div>
               </div>
-              <div className="text-primary font-medium">{r.formatted}</div>
+              <ValueCell row={r} onCommit={(v) => commitValue(r, v)} />
               <div className="text-muted-foreground text-[11px]">{r.thresholds}</div>
               <div className="flex items-center gap-2">
                 {r.status && <KPIDot status={r.status} />}
@@ -252,6 +281,89 @@ export function KPISection({ bet, onPatch }: KPISectionProps) {
         </div>
       </Card>
     </div>
+  )
+}
+
+/** Click-to-edit KPI value. Enums get a dropdown of the exact allowed values;
+ *  numeric formats get a number input ("23" or "23%" both work for pct);
+ *  custom KPIs take free text. Empty input clears the value. */
+function ValueCell({ row, onCommit }: { row: Row; onCommit: (v: KpiValue | null) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+
+  if (row.def?.format === 'enum') {
+    return (
+      <Select
+        value={row.rawValue === null ? '' : String(row.rawValue)}
+        onValueChange={(v) => onCommit(v)}
+      >
+        <SelectTrigger className="h-7 w-fit max-w-full gap-1.5 border-transparent bg-transparent px-2 -ml-2 text-xs text-primary font-medium hover:border-border focus:ring-0">
+          <SelectValue placeholder="—" />
+        </SelectTrigger>
+        <SelectContent>
+          {(row.def.enumOrder ?? []).map((o) => (
+            <SelectItem key={o} value={o} className="text-xs">
+              {o}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    )
+  }
+
+  const startEditing = () => {
+    if (row.rawValue === null) setDraft('')
+    else if (row.def?.format === 'pct') setDraft(String(Math.round(Number(row.rawValue) * 1000) / 10))
+    else setDraft(String(row.rawValue))
+    setEditing(true)
+  }
+
+  const commit = () => {
+    setEditing(false)
+    const t = draft.trim()
+    if (!t) {
+      if (row.rawValue !== null) onCommit(null)
+      return
+    }
+    if (row.custom) {
+      onCommit(t)
+      return
+    }
+    const n = Number(t.replace(/[%x×]/gi, '').trim())
+    if (Number.isNaN(n)) {
+      toast.error(`"${t}" is not a number.`)
+      return
+    }
+    // pct values are stored as fractions; treat "38" as 38%, "0.38" as 38%
+    onCommit(row.def?.format === 'pct' ? (n >= 1 ? n / 100 : n) : n)
+  }
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={startEditing}
+        title="Click to edit"
+        className="text-left text-xs text-primary font-medium hover:underline underline-offset-2 decoration-dotted"
+      >
+        {row.formatted}
+      </button>
+    )
+  }
+
+  return (
+    <Input
+      autoFocus
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit()
+        if (e.key === 'Escape') setEditing(false)
+      }}
+      placeholder={row.def?.format === 'pct' ? 'e.g. 38' : ''}
+      className="h-7 text-xs max-w-[120px]"
+    />
   )
 }
 

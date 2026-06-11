@@ -51,7 +51,15 @@ export function SummarySection({ bet, onPatch, onScore }: SummarySectionProps) {
     const current = bet.timeline?.[stage]?.[field] ?? null
     const next = value || null
     if (next === current) return
-    onPatch(bet.id, { [`timeline.${stage}.${field}`]: next }, 'system', 'Timeline edited')
+    const patch: Record<string, unknown> = { [`timeline.${stage}.${field}`]: next }
+    // a phase boundary is one date: end of phase N === start of phase N+1
+    const NEXT_STAGE: Partial<Record<Stage, Stage>> = { Evaluation: 'Pilot', Pilot: 'Scale' }
+    const PREV_STAGE: Partial<Record<Stage, Stage>> = { Pilot: 'Evaluation', Scale: 'Pilot' }
+    if (next) {
+      if (field === 'end' && NEXT_STAGE[stage]) patch[`timeline.${NEXT_STAGE[stage]}.start`] = next
+      if (field === 'start' && PREV_STAGE[stage]) patch[`timeline.${PREV_STAGE[stage]}.end`] = next
+    }
+    onPatch(bet.id, patch, 'system', 'Timeline edited')
   }
 
   return (

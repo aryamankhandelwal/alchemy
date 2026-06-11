@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2, Plus } from 'lucide-react'
+import { ArrowRight, Loader2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -47,13 +47,15 @@ const initialTimeline = (): FormTimeline => ({
   Scale: { start: '', end: '' }
 })
 
-/** end of one phase autofills the start of the next (unless the user already set it) */
+/** phase boundaries sync both ways (unless the user already set the other side) */
 const NEXT_STAGE: Partial<Record<Stage, Stage>> = { Evaluation: 'Pilot', Pilot: 'Scale' }
+const PREV_STAGE: Partial<Record<Stage, Stage>> = { Pilot: 'Evaluation', Scale: 'Pilot' }
 
 export function AddBetModal({ open, loading = false, onClose, onCreate }: AddBetModalProps) {
   const [form, setForm] = useState<CreateBetInput>(INITIAL)
   const [timeline, setTimeline] = useState<FormTimeline>(initialTimeline)
   const [touchedStarts, setTouchedStarts] = useState<Partial<Record<Stage, boolean>>>({})
+  const [touchedEnds, setTouchedEnds] = useState<Partial<Record<Stage, boolean>>>({})
   const [submitted, setSubmitted] = useState(false)
 
   useEffect(() => {
@@ -61,6 +63,7 @@ export function AddBetModal({ open, loading = false, onClose, onCreate }: AddBet
     setForm(INITIAL)
     setTimeline(initialTimeline())
     setTouchedStarts({})
+    setTouchedEnds({})
     setSubmitted(false)
   }, [open])
 
@@ -68,12 +71,17 @@ export function AddBetModal({ open, loading = false, onClose, onCreate }: AddBet
     setTimeline((t) => {
       const next = { ...t, [stage]: { ...t[stage], [field]: value } }
       const nextStage = NEXT_STAGE[stage]
-      if (field === 'end' && nextStage && !touchedStarts[nextStage]) {
+      const prevStage = PREV_STAGE[stage]
+      if (value && field === 'end' && nextStage && !touchedStarts[nextStage]) {
         next[nextStage] = { ...next[nextStage], start: value }
+      }
+      if (value && field === 'start' && prevStage && !touchedEnds[prevStage]) {
+        next[prevStage] = { ...next[prevStage], end: value }
       }
       return next
     })
     if (field === 'start') setTouchedStarts((s) => ({ ...s, [stage]: true }))
+    else setTouchedEnds((s) => ({ ...s, [stage]: true }))
   }
 
   const valid =
@@ -210,7 +218,7 @@ export function AddBetModal({ open, loading = false, onClose, onCreate }: AddBet
           <DialogFooter className="flex-row items-center justify-end gap-2 px-7 py-4 border-t bg-popover/30">
             {loading && (
               <span className="mr-auto text-[11px] text-muted-foreground">
-                AI is filling in summary, hypothesis, target customer, and KPIs…
+                AI is filling in the summary and drafting KPI suggestions for review…
               </span>
             )}
             <Button
@@ -229,8 +237,12 @@ export function AddBetModal({ open, loading = false, onClose, onCreate }: AddBet
               disabled={!valid || loading}
               className="text-xs uppercase tracking-wider2"
             >
-              {loading ? <Loader2 className="!size-3.5 animate-spin" /> : <Plus className="!size-3.5" />}
-              {loading ? 'Enriching…' : 'Create bet'}
+              {loading ? (
+                <Loader2 className="!size-3.5 animate-spin" />
+              ) : (
+                <ArrowRight className="!size-3.5" />
+              )}
+              {loading ? 'Drafting KPIs…' : 'Create & review KPIs'}
             </Button>
           </DialogFooter>
         </form>

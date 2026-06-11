@@ -542,6 +542,9 @@ def enrich_patch(bet):
         "risks": data["risks"],
         "aiSummary": data["aiSummary"],
     }
+    # KPI values are returned separately as suggestions for user approval,
+    # never auto-applied to the bet.
+    suggested = {}
     for k, v in (data.get("kpis") or {}).items():
         if k in defs:
             # coerce numeric KPI strings back to numbers for non-enum formats
@@ -552,8 +555,8 @@ def enrich_patch(bet):
                         v = int(v)
                 except (TypeError, ValueError):
                     pass
-            patch[f"kpis.{k}"] = v
-    return patch
+            suggested[k] = v
+    return patch, suggested
 
 RESEARCH_SCHEMA = {
     "type": "object",
@@ -657,8 +660,9 @@ def run_enrich_handler(bet_id):
     bet = get_bet(bet_id)
     if not bet:
         raise HttpError(404, f"bet {bet_id} not found")
-    patch = enrich_patch(bet)
-    return patch_bet_handler(bet_id, {"patch": patch, "source": "ai", "note": "Initial AI enrichment"})
+    patch, suggested = enrich_patch(bet)
+    updated = patch_bet_handler(bet_id, {"patch": patch, "source": "ai", "note": "Initial AI enrichment"})
+    return {"bet": updated, "suggestedKpis": suggested}
 
 # ---------------------------------------------------------------- score (score.ts)
 def _num_band(v, kill, prio, higher_better=True):
@@ -790,10 +794,11 @@ def kpi_def_handler(body):
     if not name:
         raise HttpError(400, "name is required")
     prompt = (
-        f'Define the KPI "{name}" in 1-2 plain-language sentences (max 35 words): what it measures '
-        f"and why it matters, in the context of this product bet at {bet.get('stage', 'Evaluation')} stage:\n"
-        f"{bet.get('name', '')} — {bet.get('description', '')}\n"
-        "Return only the definition text, no preamble, no markdown."
+        f'Define the KPI "{name}" as ONE ultra-short fragment, 8 words max — a table caption, '
+        'not a sentence. Good examples: "Time to first usable version." / "Customer value vs '
+        'acquisition cost." / "% of users completing core action." No "this measures", no "why it '
+        f"matters\", no preamble, no markdown. Context (do not mention it): {bet.get('name', '')} at "
+        f"{bet.get('stage', 'Evaluation')} stage."
     )
     text = gemini_generate([{"role": "user", "parts": [{"text": prompt}]}]).strip()
     if not text:
