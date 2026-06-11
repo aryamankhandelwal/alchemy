@@ -8,12 +8,20 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { Binary } from 'mongodb'
 
-// Handlers are imported lazily so a module-level failure in any of them
-// surfaces as a JSON 500 with the real error instead of
-// FUNCTION_INVOCATION_FAILED with no detail.
-const loadDb = () => import('../server/db')
-const loadBets = () => import('../server/routes/bets')
-const getDb = async () => (await loadDb()).getDb()
+import { chatHandler } from '../server/chat'
+import { getDb } from '../server/db'
+import { granolaExtractHandler } from '../server/granolaExtract'
+import { kpiDefinition } from '../server/kpiDef'
+import {
+  createBetHandler,
+  deleteBetHandler,
+  getBet,
+  listBets,
+  patchBetHandler,
+  runEnrichHandler,
+  runResearchHandler,
+  runScoreHandler
+} from '../server/routes/bets'
 
 const ARTIFACT_META_KEYS = ['id', 'betId', 'name', 'type', 'size', 'uploadedAt'] as const
 const MAX_ARTIFACT_BYTES = 15 * 1024 * 1024
@@ -74,25 +82,17 @@ async function deleteArtifact(id: string) {
 type Handler = (params: string[], body: any) => Promise<unknown>
 
 const ROUTES: Array<[string, RegExp, Handler]> = [
-  ['GET', /^\/api\/bets$/, async () => (await loadBets()).listBets()],
-  ['POST', /^\/api\/bets$/, async (_p, b) => (await loadBets()).createBetHandler(b)],
-  ['GET', /^\/api\/bets\/([^/]+)$/, async (p) => (await loadBets()).getBet(p[0])],
-  ['PATCH', /^\/api\/bets\/([^/]+)$/, async (p, b) => (await loadBets()).patchBetHandler(p[0], b)],
-  ['DELETE', /^\/api\/bets\/([^/]+)$/, async (p) => (await loadBets()).deleteBetHandler(p[0])],
-  ['POST', /^\/api\/research\/([^/]+)$/, async (p) => (await loadBets()).runResearchHandler(p[0])],
-  ['POST', /^\/api\/enrich\/([^/]+)$/, async (p) => (await loadBets()).runEnrichHandler(p[0])],
-  ['POST', /^\/api\/score\/([^/]+)$/, async (p) => (await loadBets()).runScoreHandler(p[0])],
-  ['POST', /^\/api\/chat$/, async (_p, b) => (await import('../server/chat')).chatHandler(b)],
-  [
-    'POST',
-    /^\/api\/kpi-def$/,
-    async (_p, b) => ({ definition: await (await import('../server/kpiDef')).kpiDefinition(b.name, b.bet) })
-  ],
-  [
-    'POST',
-    /^\/api\/granola\/extract$/,
-    async (_p, b) => (await import('../server/granolaExtract')).granolaExtractHandler(b)
-  ],
+  ['GET', /^\/api\/bets$/, () => listBets()],
+  ['POST', /^\/api\/bets$/, (_p, b) => createBetHandler(b)],
+  ['GET', /^\/api\/bets\/([^/]+)$/, (p) => getBet(p[0])],
+  ['PATCH', /^\/api\/bets\/([^/]+)$/, (p, b) => patchBetHandler(p[0], b)],
+  ['DELETE', /^\/api\/bets\/([^/]+)$/, (p) => deleteBetHandler(p[0])],
+  ['POST', /^\/api\/research\/([^/]+)$/, (p) => runResearchHandler(p[0])],
+  ['POST', /^\/api\/enrich\/([^/]+)$/, (p) => runEnrichHandler(p[0])],
+  ['POST', /^\/api\/score\/([^/]+)$/, (p) => runScoreHandler(p[0])],
+  ['POST', /^\/api\/chat$/, (_p, b) => chatHandler(b)],
+  ['POST', /^\/api\/kpi-def$/, async (_p, b) => ({ definition: await kpiDefinition(b.name, b.bet) })],
+  ['POST', /^\/api\/granola\/extract$/, (_p, b) => granolaExtractHandler(b)],
   ['GET', /^\/api\/bets\/([^/]+)\/artifacts$/, (p) => listArtifacts(p[0])],
   ['POST', /^\/api\/bets\/([^/]+)\/artifacts$/, (p, b) => uploadArtifact(p[0], b)],
   ['DELETE', /^\/api\/artifacts\/([^/]+)$/, (p) => deleteArtifact(p[0])],
