@@ -196,7 +196,32 @@ export function SummarySection({ bet, onPatch, onScore }: SummarySectionProps) {
               How the AI weighed {bet.name} at its current stage ({bet.stage}).
             </DialogDescription>
           </DialogHeader>
-          <div className="px-7 py-6 max-h-[60vh] overflow-y-auto">
+          <div className="px-7 py-6 max-h-[60vh] overflow-y-auto space-y-5">
+            {bet.rice && (
+              <div className="grid grid-cols-4 gap-3">
+                {(
+                  [
+                    ['Reach', bet.rice.reach, false],
+                    ['Impact', bet.rice.impact, false],
+                    ['Confidence', bet.rice.confidence, false],
+                    ['Effort', bet.rice.effort, true]
+                  ] as const
+                ).map(([label, value, inverted]) => (
+                  <Card key={label} className="bg-popover/50 p-3 text-center shadow-none">
+                    <div className="text-[10px] uppercase tracking-wider2 text-muted-foreground mb-1">
+                      {label}
+                    </div>
+                    <div className="text-lg font-bold leading-none text-foreground">
+                      {value}
+                      <span className="text-muted-foreground text-xs font-normal">/10</span>
+                    </div>
+                    {inverted && (
+                      <div className="text-[9px] text-muted-foreground/70 mt-1">lower is better</div>
+                    )}
+                  </Card>
+                ))}
+              </div>
+            )}
             {bet.scoreRationale ? (
               <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">
                 {bet.scoreRationale}

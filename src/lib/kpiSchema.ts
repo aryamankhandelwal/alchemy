@@ -189,13 +189,13 @@ export function getKpiDefs(stage: Stage): Record<string, KpiDefinition> {
   return KPI_SCHEMA[stage] ?? {}
 }
 
-export function evaluateKpi(stage: Stage, key: string, value: KpiValue | undefined): KpiStatus | null {
+export function evaluateKpi(stage: Stage, key: string, value: KpiValue | null | undefined): KpiStatus | null {
   const def = KPI_SCHEMA[stage]?.[key]
   if (!def || value === undefined || value === null) return null
   return def.evaluate(value)
 }
 
-export function formatKpiValue(stage: Stage, key: string, value: KpiValue | undefined): string {
+export function formatKpiValue(stage: Stage, key: string, value: KpiValue | null | undefined): string {
   const def = KPI_SCHEMA[stage]?.[key]
   if (!def || value === undefined || value === null) return '—'
   return def.formatValue(value)

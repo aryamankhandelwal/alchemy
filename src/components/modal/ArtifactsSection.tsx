@@ -1,11 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  ClipboardList,
   ExternalLink,
   File,
+  FileDown,
   FileSpreadsheet,
   FileText,
   Loader2,
   Paperclip,
+  Sparkles,
   Trash2,
   Upload
 } from 'lucide-react'
@@ -13,7 +16,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { api, artifactFileUrl } from '@/lib/apiClient'
+import { api, artifactFileUrl, DOC_UPDATED_EVENT } from '@/lib/apiClient'
 import { formatDate } from '@/lib/dates'
 import type { Artifact, Bet } from '@/types/bet'
 
@@ -44,10 +47,11 @@ function readAsBase64(file: globalThis.File): Promise<string> {
 export function ArtifactsSection({ bet }: { bet: Bet }) {
   const [artifacts, setArtifacts] = useState<Artifact[] | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [generating, setGenerating] = useState<'memo' | 'prd' | null>(null)
+  const [converting, setConverting] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    setArtifacts(null)
+  const refetch = useCallback(() => {
     api
       .listArtifacts(bet.id)
       .then(setArtifacts)
@@ -56,6 +60,17 @@ export function ArtifactsSection({ bet }: { bet: Bet }) {
         setArtifacts([])
       })
   }, [bet.id])
+
+  useEffect(() => {
+    setArtifacts(null)
+    refetch()
+  }, [refetch])
+
+  // The AI chat can regenerate the PRD/memo (replacing the old PDF) — stay in sync.
+  useEffect(() => {
+    window.addEventListener(DOC_UPDATED_EVENT, refetch)
+    return () => window.removeEventListener(DOC_UPDATED_EVENT, refetch)
+  }, [refetch])
 
   const handleFiles = async (files: FileList | null) => {
     if (!files?.length) return
@@ -78,6 +93,36 @@ export function ArtifactsSection({ bet }: { bet: Bet }) {
     } finally {
       setUploading(false)
       if (inputRef.current) inputRef.current.value = ''
+    }
+  }
+
+  const handleGenerate = async (kind: 'memo' | 'prd') => {
+    if (generating) return
+    setGenerating(kind)
+    try {
+      const { artifacts: created } = await api.generateDoc(bet.id, kind)
+      setArtifacts((prev) => [...(prev ?? []), ...created])
+      toast.success(`${kind === 'prd' ? 'PRD' : 'Memo'} generated`)
+      const pdf = created.find((a) => a.type === 'application/pdf')
+      if (pdf) window.open(artifactFileUrl(pdf.id), '_blank', 'noopener')
+    } catch (e) {
+      toast.error(`Generation failed: ${(e as Error).message}`)
+    } finally {
+      setGenerating(null)
+    }
+  }
+
+  const handleConvert = async (artifact: Artifact) => {
+    if (converting) return
+    setConverting(artifact.id)
+    try {
+      const created = await api.convertDocx(artifact.id)
+      setArtifacts((prev) => [...(prev ?? []), created])
+      toast.success(`${created.name} created`)
+    } catch (e) {
+      toast.error(`Conversion failed: ${(e as Error).message}`)
+    } finally {
+      setConverting(null)
     }
   }
 
@@ -159,6 +204,24 @@ export function ArtifactsSection({ bet }: { bet: Bet }) {
                   {formatSize(a.size)} · uploaded {formatDate(a.uploadedAt.slice(0, 10))}
                 </span>
               </a>
+              {a.canConvert && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleConvert(a)}
+                  disabled={converting !== null}
+                  title="Create an editable Word version of this document"
+                  className="text-[10px] uppercase tracking-wider2 text-muted-foreground hover:text-primary shrink-0"
+                >
+                  {converting === a.id ? (
+                    <Loader2 className="!size-3.5 animate-spin" />
+                  ) : (
+                    <FileDown className="!size-3.5" />
+                  )}
+                  docx
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="ghost"
@@ -173,6 +236,51 @@ export function ArtifactsSection({ bet }: { bet: Bet }) {
           ))}
         </div>
       )}
+
+      <div>
+        <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider2 text-muted-foreground mb-3">
+          <Sparkles className="size-3" />
+          <span>Generate documents</span>
+        </div>
+        <p className="text-xs text-muted-foreground leading-relaxed mb-4">
+          The AI drafts a document from this bet's current data — summary, market, KPIs, risks,
+          initiatives. The PDF lands in the list above and opens automatically; use its "docx"
+          button for an editable Word version. Ask the Alchemist chat to revise it ("in the PRD,
+          tighten the success metrics") — the old PDF is replaced. Takes ~20 seconds.
+        </p>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={generating !== null}
+            onClick={() => handleGenerate('memo')}
+            className="text-[11px] uppercase tracking-wider2 border-primary/30 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground hover:border-primary"
+          >
+            {generating === 'memo' ? (
+              <Loader2 className="!size-3.5 animate-spin" />
+            ) : (
+              <FileText className="!size-3.5" />
+            )}
+            <span>{generating === 'memo' ? 'Drafting memo…' : 'Generate Memo'}</span>
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={generating !== null}
+            onClick={() => handleGenerate('prd')}
+            className="text-[11px] uppercase tracking-wider2 border-primary/30 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground hover:border-primary"
+          >
+            {generating === 'prd' ? (
+              <Loader2 className="!size-3.5 animate-spin" />
+            ) : (
+              <ClipboardList className="!size-3.5" />
+            )}
+            <span>{generating === 'prd' ? 'Drafting PRD…' : 'Generate PRD'}</span>
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }

@@ -84,6 +84,39 @@ bets_col.create_index("id", unique=True)
 artifacts_col = client[ENV.get("MONGODB_DB", "alchemy")]["artifacts"]
 artifacts_col.create_index("id", unique=True)
 artifacts_col.create_index("betId")
+
+# --- One-time seeders (mirrors server/seed.ts): bets from seed/bets.json,
+# artifacts from seed/artifacts.json + seed/files/, both written by
+# scripts/snapshot-seed.py. Only run when the collection is empty. ---
+SEED_DIR = os.path.join(ROOT, "seed")
+
+def seed_if_empty():
+    bets_path = os.path.join(SEED_DIR, "bets.json")
+    if bets_col.count_documents({}) == 0 and os.path.isfile(bets_path):
+        with open(bets_path, encoding="utf-8") as fh:
+            seed_bets = json.load(fh)
+        if seed_bets:
+            bets_col.insert_many(seed_bets)
+            print(f"[seed] inserted {len(seed_bets)} bet(s)")
+    manifest_path = os.path.join(SEED_DIR, "artifacts.json")
+    if artifacts_col.count_documents({}) == 0 and os.path.isfile(manifest_path):
+        with open(manifest_path, encoding="utf-8") as fh:
+            manifest = json.load(fh)
+        docs = []
+        for m in manifest:
+            file_path = os.path.join(SEED_DIR, "files", m["file"])
+            if not os.path.isfile(file_path):
+                print(f"[seed] missing artifact file: {m['file']}")
+                continue
+            doc = {k: v for k, v in m.items() if k != "file"}
+            with open(file_path, "rb") as fh:
+                doc["data"] = Binary(fh.read())
+            docs.append(doc)
+        if docs:
+            artifacts_col.insert_many(docs)
+            print(f"[seed] inserted {len(docs)} artifact(s)")
+
+seed_if_empty()
 print(f"[db] connected to {ENV.get('MONGODB_DB', 'alchemy')}; {bets_col.count_documents({})} bet(s)")
 
 def strip_id(doc):
@@ -326,15 +359,9 @@ Astra Tech's stage-gated portfolio system for new product bets. Every bet sits a
 - Strong across dimensions → Prioritise.
 - A bet can be Proceed at one stage and Kill at the next if real-world signals shift."""
 
-OUTPUT_CONTRACT = """# Your job
-
-You are an in-app assistant inside Alchemy, the New Horizons portfolio dashboard. The user is a senior operator (Strategy / COO Office). You help them update bets and answer framework questions.
-
-Return a JSON object with two keys:
-
-1. **patch** — either `null` (no update — user is asking a question or chatting), or a flat object whose keys are dot-paths into the bet and values are the new values.
-
-   Examples of valid patches:
+# The patch contract shared by every AI surface that emits bet patches
+# (chat, Granola transcript extraction). Mirrors src/lib/systemPrompt.ts.
+PATCH_REFERENCE = """Examples of valid patches:
    - `{ "kpis.ltvCac": 2.3 }`
    - `{ "decision": "Prioritise" }`
    - `{ "kpis.activationRate": 0.18 }`
@@ -355,9 +382,23 @@ Return a JSON object with two keys:
      - Edit: `{ "initiatives[0].name": "..." }`, `{ "initiatives[0].notes": "..." }`, `{ "initiatives[0].subs[1].done": true }`, `{ "initiatives[0].subs[1].due": "2026-07-15" }`
      - Delete: `{ "initiatives.remove": "<id or exact name>" }` or `{ "initiatives[0].subs.remove": "<id or exact name>" }` (also works on `risks` / `market.competitors` / `customKpis`).
 
-   KPI value formats: percentages as decimals (0.18 for 18%), LTV/CAC as multiples (2.3), payback as integer months, speed-to-MVP as integer weeks. Enum KPIs use the exact strings from the threshold table (e.g. "Well-defined", "Approaching breakeven", "Fully approved").
+   KPI value formats: percentages as decimals (0.18 for 18%), LTV/CAC as multiples (2.3), payback as integer months, speed-to-MVP as integer weeks. Enum KPIs use the exact strings from the threshold table (e.g. "Well-defined", "Approaching breakeven", "Fully approved")."""
+
+OUTPUT_CONTRACT = """# Your job
+
+You are an in-app assistant inside Alchemy, the New Horizons portfolio dashboard. The user is a senior operator (Strategy / COO Office). You help them update bets and answer framework questions.
+
+Return a JSON object with two keys:
+
+1. **patch** — either `null` (no update — user is asking a question or chatting), or a flat object whose keys are dot-paths into the bet and values are the new values.
+
+""" + PATCH_REFERENCE + """
 
 2. **reply** — one to two short sentences. Direct, professional tone. Acknowledge what was updated, or answer the question. Do NOT repeat the patch back as text. Do NOT pad with hedging.
+
+Special key — generated documents: if the user asks to change, fix, or regenerate the bet's generated PRD or memo (e.g. "in the PRD, make the success metrics stricter"), return a patch containing ONLY:
+`{"docUpdate": {"kind": "prd" or "memo", "instructions": "<the requested change, restated precisely>"}}`
+The server applies it to the document and replaces the old PDF. Do not combine docUpdate with bet-field updates in the same patch.
 
 Rules:
 - If the user gives ambiguous input ("looks bad"), do not patch — ask one clarifying question in `reply` and set `patch` to null.
@@ -474,9 +515,39 @@ def chat_handler(body):
             parsed = json.loads(raw)
         except json.JSONDecodeError:
             return {"patch": None, "reply": f"AI returned non-JSON: {raw[:200]}"}
-        return {"patch": parsed.get("patch"), "reply": parsed.get("reply", "")}
+        patch = parsed.get("patch")
+        reply = parsed.get("reply", "")
+        if isinstance(patch, dict) and "docUpdate" in patch:
+            du = patch.pop("docUpdate") or {}
+            if not patch:
+                patch = None
+            extra, doc_updated = _apply_doc_update(bet, du)
+            reply = f"{reply} {extra}".strip() if reply else extra
+            return {"patch": patch, "reply": reply, "docUpdated": doc_updated}
+        return {"patch": patch, "reply": reply}
     except Exception as e:  # noqa
         return {"patch": None, "reply": f"AI request failed: {e}"}
+
+def _apply_doc_update(bet, du):
+    """Regenerate a bet's PRD/memo per the chat instruction; the old PDF is replaced."""
+    kind = (du.get("kind") or "").strip().lower()
+    if kind not in ("memo", "prd"):
+        return ("I couldn't tell whether that referred to the PRD or the memo — please specify.", False)
+    label = "PRD" if kind == "prd" else "memo"
+    try:
+        full_bet = get_bet(bet.get("id")) or bet
+        existing = artifacts_col.find_one({"betId": full_bet.get("id"), "gen.kind": kind})
+        previous = (existing or {}).get("gen", {}).get("content")
+        content = _generate_doc_content(full_bet, kind,
+                                        instructions=du.get("instructions"), previous=previous)
+        if existing:
+            artifacts_col.delete_one({"id": existing["id"]})
+        _store_doc_pdf(full_bet, kind, content)
+        verb = "Updated" if existing else "Generated"
+        return (f"{verb} the {label} — find the new PDF in the Artifacts tab"
+                + (" (the previous version was replaced)." if existing else "."), True)
+    except Exception as e:  # noqa
+        return (f"{label.capitalize()} update failed: {e}", False)
 
 def enrich_patch(bet):
     defs = KPI_SCHEMA.get(bet["stage"], {})
@@ -664,6 +735,156 @@ def run_enrich_handler(bet_id):
     updated = patch_bet_handler(bet_id, {"patch": patch, "source": "ai", "note": "Initial AI enrichment"})
     return {"bet": updated, "suggestedKpis": suggested}
 
+# ---------------------------------------------------------------- granola (granolaExtract.ts)
+GRANOLA_RESPONSE_SCHEMA = {
+    "type": "object",
+    "required": ["meetingTitle", "proposals"],
+    "properties": {
+        "meetingTitle": {"type": "string"},
+        "proposals": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["kind", "betId", "betName", "summary", "patchJson", "newBet", "quote", "speaker"],
+                "properties": {
+                    "kind": {"type": "string", "enum": ["edit", "new_bet"]},
+                    "betId": {"type": "string", "nullable": True},
+                    "betName": {"type": "string"},
+                    "summary": {"type": "string"},
+                    "patchJson": {"type": "string", "nullable": True},
+                    "newBet": {
+                        "type": "object",
+                        "nullable": True,
+                        "required": ["name", "description", "stage", "decision"],
+                        "properties": {
+                            "name": {"type": "string"},
+                            "description": {"type": "string"},
+                            "stage": {"type": "string", "enum": ["Evaluation", "Pilot", "Scale"]},
+                            "decision": {"type": "string", "enum": ["Prioritise", "Proceed", "Kill", "Killed"]},
+                        },
+                    },
+                    "quote": {"type": "string"},
+                    "speaker": {"type": "string", "nullable": True},
+                },
+            },
+        },
+    },
+}
+
+def _slim_bet(bet):
+    return {
+        "id": bet.get("id"),
+        "name": bet.get("name"),
+        "description": bet.get("description"),
+        "stage": bet.get("stage"),
+        "decision": bet.get("decision"),
+        "kpis": bet.get("kpis") or {},
+        "customKpis": [{"name": c.get("name"), "value": c.get("value")} for c in (bet.get("customKpis") or [])],
+        "risks": [r.get("name") for r in (bet.get("risks") or [])],
+        "initiatives": [
+            {"id": i.get("id"), "name": i.get("name"),
+             "subs": [{"id": s.get("id"), "name": s.get("name"), "done": s.get("done")} for s in (i.get("subs") or [])]}
+            for i in (bet.get("initiatives") or [])
+        ],
+    }
+
+def _norm_text(s):
+    return re.sub(r"\s+", " ", str(s)).strip().lower()
+
+def granola_extract_handler(body):
+    transcript = (body.get("transcript") or "").strip()
+    if len(transcript) < 40:
+        raise HttpError(400, "transcript is required (paste the meeting transcript)")
+    meeting_title = (body.get("meetingTitle") or "").strip()
+
+    bets = list_bets()
+    primer = FRAMEWORK_PRIMER.format(
+        evaluation=render_kpi_table("Evaluation"),
+        pilot=render_kpi_table("Pilot"),
+        scale=render_kpi_table("Scale"),
+    )
+    job = (
+        "# Your job\n\n"
+        "You are the meeting-sync assistant inside Alchemy, Astra Tech's New Horizons portfolio dashboard. "
+        "Below is the transcript of an R&D squad meeting. Extract every concrete, actionable update to the "
+        "portfolio that was stated or clearly decided in the meeting, as a list of proposals. Each proposal "
+        "is later reviewed and approved by a human — propose, don't decide.\n\n"
+        "Proposal kinds:\n"
+        '1. **edit** — a change to an existing bet (set `kind` to "edit", `betId`/`betName` to the bet from '
+        "the portfolio below, `newBet` to null). Put the change in `patchJson`: a JSON-ENCODED STRING of a "
+        "patch object following this contract:\n\n" + PATCH_REFERENCE + "\n\n"
+        '   Stage/decision moves are plain patches too: { "stage": "Pilot", "decision": "Proceed" }.\n'
+        '2. **new_bet** — a genuinely new product idea/initiative discussed as worth tracking (set `kind` to '
+        '"new_bet", `betId` and `patchJson` to null, fill `newBet` with name, a 1-2 sentence description from '
+        "the discussion, and the stage/decision it should start at — usually Evaluation/Proceed).\n\n"
+        "For EVERY proposal also provide:\n"
+        '- `summary` — one plain-English sentence describing the change (e.g. "Update LTV/CAC to 2.3× on BNPL for SMEs").\n'
+        "- `quote` — the supporting evidence: the transcript line that MOST DIRECTLY states this specific change, "
+        "copied CHARACTER-FOR-CHARACTER (do not paraphrase, fix typos, or merge separate lines). Keep it under ~40 words.\n"
+        "- `speaker` — who said it, if the transcript identifies speakers; otherwise null.\n\n"
+        "Rules:\n"
+        "- Only propose changes explicitly supported by the transcript. No inferring KPI values that weren't "
+        'stated. Vague sentiment ("retention looks rough") is NOT a KPI update — skip it or, if a decision was made, capture that.\n'
+        "- One proposal per logical change. A KPI update and a decision change discussed together are two "
+        "proposals (separate quotes if separate statements).\n"
+        "- Match bets by name/context against the portfolio below; use the exact `id`. If a mentioned "
+        "initiative matches no existing bet and is substantive, make it a new_bet proposal.\n"
+        "- If the meeting contains nothing actionable, return an empty proposals array."
+    )
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    prompt = "\n\n---\n\n".join([
+        primer,
+        job,
+        "# Current portfolio (slim JSON)\n\n```json\n" + json.dumps([_slim_bet(b) for b in bets], indent=2) + "\n```",
+        "# Meeting" + (f": {meeting_title}" if meeting_title else "") + "\n\nTranscript:\n\n" + transcript,
+        f"Today's date is {today}.",
+    ])
+
+    raw = gemini_generate([{"role": "user", "parts": [{"text": prompt}]}],
+                          response_mime_type="application/json",
+                          response_schema=GRANOLA_RESPONSE_SCHEMA, temperature=0.1)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        raise HttpError(502, f"Gemini returned non-JSON output: {raw[:200]}")
+
+    bet_ids = {b.get("id") for b in bets}
+    norm_transcript = _norm_text(transcript)
+    proposals = []
+    for p in data.get("proposals") or []:
+        kind = p.get("kind")
+        patch = None
+        if kind == "edit":
+            # Drop edits the UI couldn't apply: unknown bet or unparseable patch.
+            if not p.get("betId") or p["betId"] not in bet_ids or not p.get("patchJson"):
+                continue
+            try:
+                patch = json.loads(p["patchJson"])
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if not isinstance(patch, dict) or not patch:
+                continue
+        elif kind == "new_bet":
+            nb = p.get("newBet")
+            if not isinstance(nb, dict) or not nb.get("name"):
+                continue
+        else:
+            continue
+        quote = p.get("quote") or ""
+        proposals.append({
+            "id": "gp-" + "".join(random.choices(string.ascii_lowercase + string.digits, k=10)),
+            "kind": kind,
+            "betId": p.get("betId") if kind == "edit" else None,
+            "betName": p.get("betName") or "",
+            "summary": p.get("summary") or "",
+            "patch": patch,
+            "newBet": p.get("newBet") if kind == "new_bet" else None,
+            "evidence": {"quote": quote, "speaker": p.get("speaker")},
+            "quoteVerified": _norm_text(quote) in norm_transcript,
+        })
+
+    return {"meetingTitle": data.get("meetingTitle") or meeting_title or "Meeting", "proposals": proposals}
+
 # ---------------------------------------------------------------- score (score.ts)
 def _num_band(v, kill, prio, higher_better=True):
     """Mirror kpiSchema.ts numeric evaluators: strict < / > at the kill edge."""
@@ -737,56 +958,80 @@ def score_bet(bet):
             f"Bands: kill {c.get('kill')} | proceed {c.get('proceed')} | prioritise {c.get('prioritise')}"
         )
     kpi_list = "\n".join(lines)
-    # Strip prior scoring outputs (aiSummary/scoreRationale/score) and raw kpis: they are
-    # what we're regenerating — leaving them in makes the model parrot stale verdicts.
+    # Strip prior scoring outputs (aiSummary/scoreRationale/score/rice) and raw kpis: they
+    # are what we're regenerating — leaving them in makes the model parrot stale verdicts.
     bet_slim = {k: v for k, v in bet.items()
-                if k not in ("history", "kpis", "customKpis", "aiSummary", "scoreRationale", "score")}
+                if k not in ("history", "kpis", "customKpis", "aiSummary", "scoreRationale", "score", "rice")}
     prompt = (
         "You are the investment-committee scorer inside Alchemy, Astra Tech's New Horizons "
-        f"portfolio dashboard (UAE / MENA fintech). Score this bet 0-100 on how strong it looks "
-        f"at its CURRENT stage ({stage}).\n\n"
-        "Scoring rules:\n"
-        "1. The entered KPIs are the primary driver. Each KPI below has been PRE-EVALUATED by the "
-        "app into KILL / PROCEED / PRIORITISE — these verdicts are FINAL and authoritative. Never "
-        "re-judge a value as borderline, 'at the kill threshold', or otherwise different from its "
-        "stated verdict. Mostly PRIORITISE => 75+, mostly PROCEED => 50-75, any KPI marked "
-        "KILL caps the score below 40.\n"
-        "2. MISSING KPI values are NOT a failure — the bet may simply be early in the phase and the "
-        "data not yet measurable. Do not cap or heavily penalise for them; at most note them in the "
-        "rationale and trim a few points if most KPIs are still unmeasured.\n"
-        "3. Risks adjust the score moderately (roughly +/-10): drag it down for High-severity risks "
-        "with weak or no mitigation; a credible mitigation largely neutralises a risk.\n"
-        "4. Market (TAM/SAM/SOM credibility, competitor pressure) is secondary context worth a few "
-        "points either way — competitive pressure alone must not sink an otherwise on-track bet.\n\n"
+        f"portfolio dashboard (UAE / MENA fintech). Rate this bet at its CURRENT stage ({stage}) "
+        "on the four RICE dimensions, each an integer 1-10 with a one-line justification:\n\n"
+        "- reach: how much of the addressable market/customer base this could plausibly touch "
+        "(ground it in TAM/SAM/SOM, target customer, and distribution).\n"
+        "- impact: depth of value per customer plus strategic upside for Astra Tech if it works "
+        "(monetisation, moat, portfolio fit).\n"
+        "- confidence: strength of the EVIDENCE that reach and impact are real. The KPI verdicts below "
+        "have been PRE-EVALUATED by the app into KILL / PROCEED / PRIORITISE — they are final; never "
+        "re-judge a value as borderline. Mostly PRIORITISE => high confidence (8-10); mostly PROCEED => "
+        "mid (5-7); each KILL verdict is strong negative evidence that should pull confidence down "
+        "1-3 points — but ONE kill KPI among healthy ones is a flag to investigate, NOT a veto on the "
+        "whole bet. KPIs NOT ENTERED are neutral (the bet may just be early); many missing KPIs cap "
+        "confidence around 6. High-severity risks with weak mitigation also lower confidence; credible "
+        "mitigations largely neutralise a risk.\n"
+        "- effort: cost and complexity to deliver from here (build time, operational load, regulatory "
+        "path). 1 = trivial, 10 = multi-year heavy build. Use speed-to-MVP / operational / regulatory "
+        "KPIs where present.\n\n"
         f"Stage-{stage} KPI verdicts (final):\n{kpi_list}\n\n"
         f"The bet (full JSON):\n{json.dumps(bet_slim, indent=2)}\n\n"
+        "The app computes the 0-100 score from your ratings as "
+        "100 x (reach x impact x confidence x (11 - effort) / 10000)^0.25 — roughly: all 5s ~ 52, "
+        "strong across the board >= 75, weak across the board <= 40.\n\n"
         "Return JSON only with these fields:\n"
-        "- score: integer 0-100.\n"
-        '- rationale: your working, as 3-5 short bullet lines (each starting with "- ", separated by \\n). '
-        "One bullet per factor you weighed: entered-KPI read vs thresholds, missing KPIs (neutral note), "
-        "risks, market. Name the specific KPIs/risks that moved the score.\n"
-        "- aiSummary: a rewrite of the bet's aiSummary that is CONSISTENT with this score. 3-4 short "
+        "- reach, impact, confidence, effort: integers 1-10.\n"
+        "- reachWhy, impactWhy, confidenceWhy, effortWhy: one short sentence each naming the specific "
+        "KPIs, risks, or market facts behind the rating.\n"
+        "- aiSummary: a rewrite of the bet's aiSummary CONSISTENT with your ratings. 3-4 short "
         "sentences (50-70 words) synthesising the bet, then a final new line with EXACTLY "
-        '"Recommendation: X" where X is Kill, Proceed, or Prioritise — aligned with the score '
-        "(below ~40 leans Kill, ~40-75 Proceed, above ~75 Prioritise). The summary and the score "
-        "must never contradict each other."
+        '"Recommendation: X" where X is Kill, Proceed, or Prioritise — aligned with the computed '
+        "score band (below ~40 leans Kill, ~40-75 Proceed, above ~75 Prioritise)."
     )
     raw = gemini_generate(
         [{"role": "user", "parts": [{"text": prompt}]}],
         response_mime_type="application/json",
         response_schema={
             "type": "object",
-            "required": ["score", "rationale", "aiSummary"],
+            "required": ["reach", "reachWhy", "impact", "impactWhy",
+                         "confidence", "confidenceWhy", "effort", "effortWhy", "aiSummary"],
             "properties": {
-                "score": {"type": "integer"},
-                "rationale": {"type": "string"},
+                "reach": {"type": "integer"},
+                "reachWhy": {"type": "string"},
+                "impact": {"type": "integer"},
+                "impactWhy": {"type": "string"},
+                "confidence": {"type": "integer"},
+                "confidenceWhy": {"type": "string"},
+                "effort": {"type": "integer"},
+                "effortWhy": {"type": "string"},
                 "aiSummary": {"type": "string"},
             },
         },
     )
     data = json.loads(raw)
-    score = max(0, min(100, int(round(float(data["score"])))))
-    return score, str(data.get("rationale", "")), str(data.get("aiSummary", ""))
+
+    def _dim(key):
+        return max(1, min(10, int(round(float(data[key])))))
+
+    rice = {"reach": _dim("reach"), "impact": _dim("impact"),
+            "confidence": _dim("confidence"), "effort": _dim("effort")}
+    # Geometric blend, effort inverted — mirrors riceToScore in server/score.ts.
+    product = rice["reach"] * rice["impact"] * rice["confidence"] * (11 - rice["effort"]) / 10000
+    score = int(round(100 * product ** 0.25))
+    rationale = "\n".join([
+        f"- Reach {rice['reach']}/10 — {data.get('reachWhy', '')}",
+        f"- Impact {rice['impact']}/10 — {data.get('impactWhy', '')}",
+        f"- Confidence {rice['confidence']}/10 — {data.get('confidenceWhy', '')}",
+        f"- Effort {rice['effort']}/10 (lower is better) — {data.get('effortWhy', '')}",
+    ])
+    return score, rationale, str(data.get("aiSummary", "")), rice
 
 def kpi_def_handler(body):
     name = (body.get("name") or "").strip()
@@ -809,9 +1054,9 @@ def run_score_handler(bet_id):
     bet = get_bet(bet_id)
     if not bet:
         raise HttpError(404, f"bet {bet_id} not found")
-    score, rationale, ai_summary = score_bet(bet)
+    score, rationale, ai_summary, rice = score_bet(bet)
     return patch_bet_handler(bet_id, {
-        "patch": {"score": score, "scoreRationale": rationale, "aiSummary": ai_summary},
+        "patch": {"score": score, "scoreRationale": rationale, "aiSummary": ai_summary, "rice": rice},
         "source": "ai",
         "note": "Score refresh",
     })
@@ -821,7 +1066,9 @@ ARTIFACT_META_KEYS = ("id", "betId", "name", "type", "size", "uploadedAt")
 MAX_ARTIFACT_BYTES = 15 * 1024 * 1024  # keep well under Mongo's 16 MB doc limit
 
 def artifact_meta(doc):
-    return {k: doc.get(k) for k in ARTIFACT_META_KEYS}
+    meta = {k: doc.get(k) for k in ARTIFACT_META_KEYS}
+    meta["canConvert"] = bool(doc.get("gen"))
+    return meta
 
 def list_artifacts_handler(bet_id):
     return [artifact_meta(d) for d in artifacts_col.find({"betId": bet_id}).sort("uploadedAt", 1)]
@@ -857,6 +1104,76 @@ def delete_artifact_handler(artifact_id):
         raise HttpError(404, f"artifact {artifact_id} not found")
     return {"id": artifact_id}
 
+# ---------------------------------------------------------------- doc generation (Memo / PRD)
+import docgen
+
+DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+def _store_generated_artifact(bet_id, name, mime, raw, gen=None):
+    doc = {
+        "id": f"{int(time.time() * 1000):x}{random.randint(0, 0xFFFF):04x}",
+        "betId": bet_id,
+        "name": name,
+        "type": mime,
+        "size": len(raw),
+        "uploadedAt": datetime.now(timezone.utc).isoformat(),
+        "data": Binary(raw),
+    }
+    if gen:
+        # structured content the doc was rendered from — enables docx conversion
+        # and AI-driven revisions without re-deriving from scratch
+        doc["gen"] = gen
+    artifacts_col.insert_one(doc)
+    return artifact_meta(doc)
+
+def _generate_doc_content(bet, kind, instructions=None, previous=None):
+    bet_sans_history = {k: v for k, v in bet.items() if k != "history"}
+    kpi_lines = render_kpi_table(bet.get("stage", "Evaluation"))
+    bet_json = json.dumps(bet_sans_history, ensure_ascii=False, indent=2)
+    schema = docgen.PRD_SCHEMA if kind == "prd" else docgen.MEMO_SCHEMA
+    if previous and instructions:
+        prompt = docgen.revise_prompt(kind, json.dumps(previous, ensure_ascii=False, indent=2),
+                                      instructions, bet_json, kpi_lines)
+    else:
+        prompt = (docgen.prd_prompt if kind == "prd" else docgen.memo_prompt)(bet_json, kpi_lines)
+        if instructions:
+            prompt += f"\n\nAdditional instructions from the user: {instructions}"
+    raw = gemini_generate([{"role": "user", "parts": [{"text": prompt}]}],
+                          response_mime_type="application/json", response_schema=schema)
+    return json.loads(raw)
+
+def _store_doc_pdf(bet, kind, content):
+    kpi_defs = KPI_SCHEMA.get(bet.get("stage", "Evaluation"), {})
+    pdf_bytes = docgen.build_pdf(kind, content, bet, kpi_defs)
+    label = "PRD" if kind == "prd" else "Executive Memo"
+    name = f"{bet.get('name', 'Bet')} - {label}.pdf"
+    return _store_generated_artifact(bet["id"], name, "application/pdf", pdf_bytes,
+                                     gen={"kind": kind, "content": content})
+
+def generate_doc_handler(bet_id, body):
+    kind = (body.get("kind") or "").strip().lower()
+    if kind not in ("memo", "prd"):
+        raise HttpError(400, "kind must be 'memo' or 'prd'")
+    bet = get_bet(bet_id)
+    if not bet:
+        raise HttpError(404, f"bet {bet_id} not found")
+    content = _generate_doc_content(bet, kind)
+    return {"artifacts": [_store_doc_pdf(bet, kind, content)]}
+
+def convert_docx_handler(artifact_id):
+    doc = artifacts_col.find_one({"id": artifact_id})
+    if not doc:
+        raise HttpError(404, f"artifact {artifact_id} not found")
+    gen = doc.get("gen")
+    if not gen:
+        raise HttpError(400, "only AI-generated documents can be converted to docx")
+    bet = get_bet(doc["betId"]) or {"id": doc["betId"], "name": "Bet"}
+    kpi_defs = KPI_SCHEMA.get(bet.get("stage", "Evaluation"), {})
+    docx_bytes = docgen.build_docx(gen["kind"], gen["content"], bet, kpi_defs)
+    name = doc["name"]
+    name = name[:-4] + ".docx" if name.lower().endswith(".pdf") else name + ".docx"
+    return _store_generated_artifact(doc["betId"], name, DOCX_MIME, docx_bytes)
+
 # ---------------------------------------------------------------- HTTP server
 ROUTES = [
     ("GET", re.compile(r"^/api/bets$"), lambda p, b: list_bets()),
@@ -872,6 +1189,9 @@ ROUTES = [
     ("DELETE", re.compile(r"^/api/artifacts/([^/]+)$"), lambda p, b: delete_artifact_handler(p[0])),
     ("POST", re.compile(r"^/api/score/([^/]+)$"), lambda p, b: run_score_handler(p[0])),
     ("POST", re.compile(r"^/api/kpi-def$"), lambda p, b: kpi_def_handler(b)),
+    ("POST", re.compile(r"^/api/granola/extract$"), lambda p, b: granola_extract_handler(b)),
+    ("POST", re.compile(r"^/api/bets/([^/]+)/generate-doc$"), lambda p, b: generate_doc_handler(p[0], b)),
+    ("POST", re.compile(r"^/api/artifacts/([^/]+)/docx$"), lambda p, b: convert_docx_handler(p[0])),
 ]
 
 ARTIFACT_FILE_RE = re.compile(r"^/api/artifacts/([^/]+)/file$")
@@ -948,11 +1268,17 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(404, {"error": f"artifact {artifact_id} not found"})
             return
         data = bytes(doc["data"])
-        safe_name = doc["name"].replace('"', "")
+        # headers are latin-1; ASCII fallback + RFC 5987 filename* for the real UTF-8 name
+        name = doc["name"].replace('"', "")
+        ascii_name = name.encode("ascii", "replace").decode("ascii").replace("?", "_")
+        utf8_name = urllib.request.quote(name)
         self.send_response(200)
         self.send_header("Content-Type", doc.get("type") or "application/octet-stream")
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Content-Disposition", f'inline; filename="{safe_name}"')
+        self.send_header(
+            "Content-Disposition",
+            f"inline; filename=\"{ascii_name}\"; filename*=UTF-8''{utf8_name}",
+        )
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         self.wfile.write(data)
@@ -1052,7 +1378,7 @@ def maybe_rebuild_frontend():
     ]
     try:
         subprocess.run(cmd, cwd=ROOT, check=True, capture_output=True, text=True)
-        print(f"[alchemy] frontend rebuilt → {os.path.relpath(bundle, ROOT)}")
+        print(f"[alchemy] frontend rebuilt -> {os.path.relpath(bundle, ROOT)}")
     except subprocess.CalledProcessError as e:
         print(f"[alchemy] frontend rebuild failed: {e.stderr or e.stdout or e}")
     except OSError as e:

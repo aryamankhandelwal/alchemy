@@ -5,9 +5,11 @@ import { toast } from 'sonner'
 import { api } from '@/lib/apiClient'
 import type { CreateBetInput } from '@/lib/createBet'
 import type { Bet, Decision, HistorySource, Patch, Stage } from '@/types/bet'
+import type { GranolaProposal } from '@/types/granola'
 
 import { AddBetModal } from '@/components/AddBetModal'
 import { BetModal } from '@/components/BetModal'
+import { GranolaSyncModal } from '@/components/GranolaSyncModal'
 import { Header, type View } from '@/components/Header'
 import { KanbanGrid } from '@/components/KanbanGrid'
 import { KpiReviewModal, type KpiReview } from '@/components/KpiReviewModal'
@@ -22,6 +24,7 @@ export default function App() {
   const [view, setView] = useState<View>('kanban')
   const [creating, setCreating] = useState(false)
   const [kpiReview, setKpiReview] = useState<KpiReview | null>(null)
+  const [granolaOpen, setGranolaOpen] = useState(false)
 
   useEffect(() => {
     api
@@ -101,41 +104,71 @@ export default function App() {
     [replaceBet]
   )
 
-  const handleCreate = useCallback(async (formData: CreateBetInput) => {
-    setCreating(true)
+  // Shared post-create flow: synchronous text enrichment (KPI values come back
+  // as suggestions for KpiReviewModal), then background market research.
+  const enrichAfterCreate = useCallback(async (skeleton: Bet) => {
     try {
-      const skeleton = await api.createBet(formData)
-      setBets((prev) => (prev ? [...prev, skeleton] : [skeleton]))
-
-      // Synchronous text enrichment so the card has substance before the modal closes.
-      // KPI values come back as suggestions — the user approves them in KpiReviewModal.
-      try {
-        const { bet: enriched, suggestedKpis } = await api.enrich(skeleton.id)
-        setBets((prev) => (prev ? prev.map((b) => (b.id === enriched.id ? enriched : b)) : prev))
-        if (Object.keys(suggestedKpis).length > 0) {
-          setKpiReview({ bet: enriched, suggestions: suggestedKpis })
-        }
-      } catch (e) {
-        toast.error(`Enrichment failed: ${(e as Error).message}`)
+      const { bet: enriched, suggestedKpis } = await api.enrich(skeleton.id)
+      setBets((prev) => (prev ? prev.map((b) => (b.id === enriched.id ? enriched : b)) : prev))
+      if (Object.keys(suggestedKpis).length > 0) {
+        setKpiReview({ bet: enriched, suggestions: suggestedKpis })
       }
-
-      setAddOpen(false)
-      toast.success(`${skeleton.name} added to ${skeleton.stage} · ${skeleton.decision}`)
-
-      // Background market research — long-running, no need to block the modal.
-      api
-        .research(skeleton.id)
-        .then((updated) => {
-          setBets((prev) => (prev ? prev.map((b) => (b.id === updated.id ? updated : b)) : prev))
-          toast.success(`${updated.name}: market data populated`)
-        })
-        .catch((e: Error) => toast.error(`Market research failed: ${e.message}`))
     } catch (e) {
-      toast.error(`Add bet failed: ${(e as Error).message}`)
-    } finally {
-      setCreating(false)
+      toast.error(`Enrichment failed: ${(e as Error).message}`)
     }
+
+    // Background market research — long-running, no need to block the modal.
+    api
+      .research(skeleton.id)
+      .then((updated) => {
+        setBets((prev) => (prev ? prev.map((b) => (b.id === updated.id ? updated : b)) : prev))
+        toast.success(`${updated.name}: market data populated`)
+      })
+      .catch((e: Error) => toast.error(`Market research failed: ${e.message}`))
   }, [])
+
+  const handleCreate = useCallback(
+    async (formData: CreateBetInput) => {
+      setCreating(true)
+      try {
+        const skeleton = await api.createBet(formData)
+        setBets((prev) => (prev ? [...prev, skeleton] : [skeleton]))
+        await enrichAfterCreate(skeleton)
+        setAddOpen(false)
+        toast.success(`${skeleton.name} added to ${skeleton.stage} · ${skeleton.decision}`)
+      } catch (e) {
+        toast.error(`Add bet failed: ${(e as Error).message}`)
+      } finally {
+        setCreating(false)
+      }
+    },
+    [enrichAfterCreate]
+  )
+
+  const handleGranolaApply = useCallback(
+    async (proposals: GranolaProposal[], meetingTitle: string) => {
+      const note = `From meeting: ${meetingTitle}`
+      let edits = 0
+      let created = 0
+      for (const p of proposals) {
+        if (p.kind === 'edit' && p.betId && p.patch) {
+          await handlePatch(p.betId, p.patch, 'granola', note)
+          edits++
+        } else if (p.kind === 'new_bet' && p.newBet) {
+          const skeleton = await api.createBet(p.newBet)
+          setBets((prev) => (prev ? [...prev, skeleton] : [skeleton]))
+          await enrichAfterCreate(skeleton)
+          created++
+        }
+      }
+      const parts = [
+        edits > 0 ? `${edits} bet update${edits === 1 ? '' : 's'}` : null,
+        created > 0 ? `${created} new bet${created === 1 ? '' : 's'}` : null
+      ].filter(Boolean)
+      if (parts.length) toast.success(`Granola sync applied: ${parts.join(', ')}`)
+    },
+    [enrichAfterCreate, handlePatch]
+  )
 
   const handleDelete = useCallback(
     async (id: string) => {
@@ -177,7 +210,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <Header view={view} onViewChange={setView} onAddBet={() => setAddOpen(true)} />
+      <Header
+        view={view}
+        onViewChange={setView}
+        onAddBet={() => setAddOpen(true)}
+        onGranolaSync={() => setGranolaOpen(true)}
+      />
       <SummaryBar bets={bets} />
       <main className="flex-1">
         {view === 'kanban' ? (
@@ -203,6 +241,11 @@ export default function App() {
         loading={creating}
         onClose={() => setAddOpen(false)}
         onCreate={handleCreate}
+      />
+      <GranolaSyncModal
+        open={granolaOpen}
+        onClose={() => setGranolaOpen(false)}
+        onApply={handleGranolaApply}
       />
       <KpiReviewModal
         review={kpiReview}

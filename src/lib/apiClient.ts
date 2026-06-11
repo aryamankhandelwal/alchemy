@@ -3,6 +3,7 @@
 
 import type { CreateBetInput } from '@/lib/createBet'
 import type { Artifact, Bet, HistorySource, KpiValue, Patch } from '@/types/bet'
+import type { GranolaExtractResult } from '@/types/granola'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -53,8 +54,23 @@ export const api = {
       body: JSON.stringify(file)
     }),
   deleteArtifact: (id: string) =>
-    request<{ id: string }>(`/api/artifacts/${id}`, { method: 'DELETE' })
+    request<{ id: string }>(`/api/artifacts/${id}`, { method: 'DELETE' }),
+  granolaExtract: (body: { transcript: string; meetingTitle?: string }) =>
+    request<GranolaExtractResult>('/api/granola/extract', {
+      method: 'POST',
+      body: JSON.stringify(body)
+    }),
+  generateDoc: (betId: string, kind: 'memo' | 'prd') =>
+    request<{ artifacts: Artifact[] }>(`/api/bets/${betId}/generate-doc`, {
+      method: 'POST',
+      body: JSON.stringify({ kind })
+    }),
+  convertDocx: (artifactId: string) =>
+    request<Artifact>(`/api/artifacts/${artifactId}/docx`, { method: 'POST' })
 }
+
+/** Window event fired when the AI chat regenerates a bet's PRD/memo. */
+export const DOC_UPDATED_EVENT = 'alchemy:doc-updated'
 
 /** URL that streams the artifact inline — open in a new tab to view/download. */
 export const artifactFileUrl = (id: string) => `/api/artifacts/${id}/file`

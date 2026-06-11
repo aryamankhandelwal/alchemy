@@ -6,7 +6,7 @@ import dns from 'node:dns'
 import { MongoClient, type Collection, type Db } from 'mongodb'
 
 import type { Bet } from '../src/types/bet'
-import { seedIfEmpty } from './seed'
+import { seedArtifactsIfEmpty, seedIfEmpty } from './seed'
 
 // Force public DNS resolvers. Some Windows/corporate networks intercept Node's
 // SRV lookups for mongodb+srv:// URIs even when the system resolver works fine.
@@ -33,6 +33,7 @@ async function connect(): Promise<CachedConnection> {
 
   await bets.createIndex({ id: 1 }, { unique: true })
   await seedIfEmpty(bets)
+  await seedArtifactsIfEmpty(db)
 
   console.log(`[db] connected to ${dbName}`)
   return { client, db, bets }

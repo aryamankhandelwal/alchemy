@@ -3,6 +3,7 @@ import { Loader2, Send } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { DOC_UPDATED_EVENT } from '@/lib/apiClient'
 import { cn } from '@/lib/utils'
 import type { Bet, Patch } from '@/types/bet'
 
@@ -103,9 +104,13 @@ export function ChatPanel({ bet, onPatch }: ChatPanelProps) {
           bet
         })
       })
-      const data = (await res.json()) as { patch?: Patch; reply?: string }
+      const data = (await res.json()) as { patch?: Patch; reply?: string; docUpdated?: boolean }
       if (data?.patch && typeof data.patch === 'object') {
         onPatch(bet.id, data.patch)
+      }
+      if (data?.docUpdated) {
+        // the server regenerated a PRD/memo PDF — tell ArtifactsSection to refetch
+        window.dispatchEvent(new Event(DOC_UPDATED_EVENT))
       }
       setMessages((m) => [
         ...m,

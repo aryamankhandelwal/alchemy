@@ -96,9 +96,9 @@ export async function runScoreHandler(id: string): Promise<Bet> {
   if (!doc) throw Object.assign(new Error(`bet ${id} not found`), { status: 404 })
   const bet = stripId(doc) as Bet
 
-  const { score, rationale, aiSummary } = await scoreBet(bet)
+  const { score, rationale, aiSummary, rice } = await scoreBet(bet)
   return patchBetHandler(id, {
-    patch: { score, scoreRationale: rationale, aiSummary },
+    patch: { score, scoreRationale: rationale, aiSummary, rice },
     source: 'ai',
     note: 'Score refresh'
   })

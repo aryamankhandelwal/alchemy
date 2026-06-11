@@ -4,6 +4,7 @@ import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 
 import { chatHandler } from './server/chat'
+import { granolaExtractHandler } from './server/granolaExtract'
 import { kpiDefinition } from './server/kpiDef'
 import {
   createBetHandler,
@@ -70,6 +71,11 @@ const routes: Route[] = [
     method: 'POST',
     pattern: /^\/api\/chat$/,
     handler: ({ body }) => chatHandler(body)
+  },
+  {
+    method: 'POST',
+    pattern: /^\/api\/granola\/extract$/,
+    handler: ({ body }) => granolaExtractHandler(body)
   }
 ]
 

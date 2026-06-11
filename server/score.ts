@@ -1,17 +1,26 @@
-// On-demand bet scoring. Sends the full bet (summary, market, KPIs vs the
-// stage thresholds, risks, timeline) plus the attached-artifact list to Gemini
-// and gets back a 0-100 score with a one-line rationale.
+// On-demand bet scoring, RICE-style. The model rates four dimensions —
+// Reach, Impact, Confidence, Effort — each 1-10 with a one-line justification
+// (KPI verdicts and risks feed Confidence as evidence, not as hard caps).
+// The 0-100 score is then computed HERE, deterministically, with a geometric
+// blend so no single dimension (or single KPI) can dominate the result.
 
 import { GoogleGenAI } from '@google/genai'
 import { z } from 'zod'
 
 import { getKpiDefs } from '../src/lib/kpiSchema'
-import type { Bet } from '../src/types/bet'
+import type { Bet, RiceScore } from '../src/types/bet'
 import { envVar } from './env'
 
+const dim = z.number().min(1).max(10)
 const ScoreSchema = z.object({
-  score: z.number().min(0).max(100),
-  rationale: z.string(),
+  reach: dim,
+  reachWhy: z.string(),
+  impact: dim,
+  impactWhy: z.string(),
+  confidence: dim,
+  confidenceWhy: z.string(),
+  effort: dim,
+  effortWhy: z.string(),
   aiSummary: z.string()
 })
 
@@ -19,6 +28,26 @@ export interface ScoreResult {
   score: number
   rationale: string
   aiSummary: string
+  rice: RiceScore
+}
+
+/**
+ * Geometric blend of the four normalized dimensions (effort inverted).
+ * All 5s with effort 5 ≈ 52; a single weak dimension drags the score but
+ * cannot floor it the way the old "any KILL caps below 40" rule did.
+ */
+export function riceToScore({ reach, impact, confidence, effort }: RiceScore): number {
+  const product = (reach * impact * confidence * (11 - effort)) / 10_000
+  return Math.round(100 * Math.pow(product, 0.25))
+}
+
+export function riceRationale(rice: RiceScore, whys: Record<keyof RiceScore, string>): string {
+  return [
+    `- Reach ${rice.reach}/10 — ${whys.reach}`,
+    `- Impact ${rice.impact}/10 — ${whys.impact}`,
+    `- Confidence ${rice.confidence}/10 — ${whys.confidence}`,
+    `- Effort ${rice.effort}/10 (lower is better) — ${whys.effort}`
+  ].join('\n')
 }
 
 export async function scoreBet(bet: Bet): Promise<ScoreResult> {
@@ -50,8 +79,8 @@ export async function scoreBet(bet: Bet): Promise<ScoreResult> {
   }
   const kpiList = kpiLines.join('\n')
 
-  // Strip prior scoring outputs (aiSummary/scoreRationale/score) and raw kpis: they are
-  // what we're regenerating — leaving them in makes the model parrot stale verdicts.
+  // Strip prior scoring outputs (aiSummary/scoreRationale/score/rice) and raw kpis: they
+  // are what we're regenerating — leaving them in makes the model parrot stale verdicts.
   const {
     history: _history,
     kpis: _kpis,
@@ -59,38 +88,42 @@ export async function scoreBet(bet: Bet): Promise<ScoreResult> {
     aiSummary: _aiSummary,
     scoreRationale: _scoreRationale,
     score: _score,
+    rice: _rice,
     ...betSansHistory
   } = bet
 
   const prompt =
     `You are the investment-committee scorer inside Alchemy, Astra Tech's New Horizons ` +
-    `portfolio dashboard (UAE / MENA fintech). Score this bet 0-100 on how strong it looks ` +
-    `at its CURRENT stage (${bet.stage}).\n\n` +
-    `Scoring rules:\n` +
-    `1. The entered KPIs are the primary driver. Each KPI below has been PRE-EVALUATED by the ` +
-    `app into KILL / PROCEED / PRIORITISE — these verdicts are FINAL and authoritative. Never ` +
-    `re-judge a value as borderline, "at the kill threshold", or otherwise different from its ` +
-    `stated verdict. Mostly PRIORITISE ⇒ 75+, mostly PROCEED ⇒ 50-75, any KPI marked ` +
-    `KILL caps the score below 40.\n` +
-    `2. MISSING KPI values are NOT a failure — the bet may simply be early in the phase and the ` +
-    `data not yet measurable. Do not cap or heavily penalise for them; at most note them in the ` +
-    `rationale and trim a few points if most KPIs are still unmeasured.\n` +
-    `3. Risks adjust the score moderately (roughly ±10): drag it down for High-severity risks ` +
-    `with weak or no mitigation; a credible mitigation largely neutralises a risk.\n` +
-    `4. Market (TAM/SAM/SOM credibility, competitor pressure) is secondary context worth a few ` +
-    `points either way — competitive pressure alone must not sink an otherwise on-track bet.\n\n` +
+    `portfolio dashboard (UAE / MENA fintech). Rate this bet at its CURRENT stage (${bet.stage}) ` +
+    `on the four RICE dimensions, each an integer 1-10 with a one-line justification:\n\n` +
+    `- reach: how much of the addressable market/customer base this could plausibly touch ` +
+    `(ground it in TAM/SAM/SOM, target customer, and distribution).\n` +
+    `- impact: depth of value per customer plus strategic upside for Astra Tech if it works ` +
+    `(monetisation, moat, portfolio fit).\n` +
+    `- confidence: strength of the EVIDENCE that reach and impact are real. The KPI verdicts below ` +
+    `have been PRE-EVALUATED by the app into KILL / PROCEED / PRIORITISE — they are final; never ` +
+    `re-judge a value as borderline. Mostly PRIORITISE ⇒ high confidence (8-10); mostly PROCEED ⇒ ` +
+    `mid (5-7); each KILL verdict is strong negative evidence that should pull confidence down ` +
+    `1-3 points — but ONE kill KPI among healthy ones is a flag to investigate, NOT a veto on the ` +
+    `whole bet. KPIs NOT ENTERED are neutral (the bet may just be early); many missing KPIs cap ` +
+    `confidence around 6. High-severity risks with weak mitigation also lower confidence; credible ` +
+    `mitigations largely neutralise a risk.\n` +
+    `- effort: cost and complexity to deliver from here (build time, operational load, regulatory ` +
+    `path). 1 = trivial, 10 = multi-year heavy build. Use speed-to-MVP / operational / regulatory ` +
+    `KPIs where present.\n\n` +
     `Stage-${bet.stage} KPI verdicts (final):\n${kpiList}\n\n` +
     `The bet (full JSON):\n${JSON.stringify(betSansHistory, null, 2)}\n\n` +
+    `The app computes the 0-100 score from your ratings as ` +
+    `100 × (reach × impact × confidence × (11 − effort) / 10000)^0.25 — roughly: all 5s ≈ 52, ` +
+    `strong across the board ≥ 75, weak across the board ≤ 40.\n\n` +
     `Return JSON only with these fields:\n` +
-    `- score: integer 0-100.\n` +
-    `- rationale: your working, as 3-5 short bullet lines (each starting with "- ", separated by \\n). ` +
-    `One bullet per factor you weighed: entered-KPI read vs thresholds, missing KPIs (neutral note), ` +
-    `risks, market. Name the specific KPIs/risks that moved the score.\n` +
-    `- aiSummary: a rewrite of the bet's aiSummary that is CONSISTENT with this score. 3-4 short ` +
+    `- reach, impact, confidence, effort: integers 1-10.\n` +
+    `- reachWhy, impactWhy, confidenceWhy, effortWhy: one short sentence each naming the specific ` +
+    `KPIs, risks, or market facts behind the rating.\n` +
+    `- aiSummary: a rewrite of the bet's aiSummary CONSISTENT with your ratings. 3-4 short ` +
     `sentences (50-70 words) synthesising the bet, then a final new line with EXACTLY ` +
-    `"Recommendation: X" where X is Kill, Proceed, or Prioritise — aligned with the score ` +
-    `(below ~40 leans Kill, ~40-75 Proceed, above ~75 Prioritise). The summary and the score ` +
-    `must never contradict each other.`
+    `"Recommendation: X" where X is Kill, Proceed, or Prioritise — aligned with the computed ` +
+    `score band (below ~40 leans Kill, ~40-75 Proceed, above ~75 Prioritise).`
 
   const result = await ai.models.generateContent({
     model,
@@ -99,10 +132,19 @@ export async function scoreBet(bet: Bet): Promise<ScoreResult> {
       responseMimeType: 'application/json',
       responseSchema: {
         type: 'object',
-        required: ['score', 'rationale', 'aiSummary'],
+        required: [
+          'reach', 'reachWhy', 'impact', 'impactWhy',
+          'confidence', 'confidenceWhy', 'effort', 'effortWhy', 'aiSummary'
+        ],
         properties: {
-          score: { type: 'integer' },
-          rationale: { type: 'string' },
+          reach: { type: 'integer' },
+          reachWhy: { type: 'string' },
+          impact: { type: 'integer' },
+          impactWhy: { type: 'string' },
+          confidence: { type: 'integer' },
+          confidenceWhy: { type: 'string' },
+          effort: { type: 'integer' },
+          effortWhy: { type: 'string' },
           aiSummary: { type: 'string' }
         }
       } as any
@@ -117,5 +159,22 @@ export async function scoreBet(bet: Bet): Promise<ScoreResult> {
     throw new Error(`Gemini returned non-JSON output: ${raw.slice(0, 200)}`)
   }
   const data = ScoreSchema.parse(parsed)
-  return { score: Math.round(data.score), rationale: data.rationale, aiSummary: data.aiSummary }
+
+  const rice: RiceScore = {
+    reach: Math.round(data.reach),
+    impact: Math.round(data.impact),
+    confidence: Math.round(data.confidence),
+    effort: Math.round(data.effort)
+  }
+  return {
+    score: riceToScore(rice),
+    rationale: riceRationale(rice, {
+      reach: data.reachWhy,
+      impact: data.impactWhy,
+      confidence: data.confidenceWhy,
+      effort: data.effortWhy
+    }),
+    aiSummary: data.aiSummary,
+    rice
+  }
 }

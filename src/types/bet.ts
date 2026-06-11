@@ -5,7 +5,7 @@ export type KpiStatus = 'Prioritise' | 'Proceed' | 'Kill'
 export type ThreatLevel = 'Low' | 'Medium' | 'High'
 export type Severity = 'Low' | 'Medium' | 'High'
 export type RiskCategory = 'Regulatory' | 'Operational' | 'Credit' | 'Market'
-export type HistorySource = 'ai' | 'drag' | 'system'
+export type HistorySource = 'ai' | 'drag' | 'system' | 'granola'
 
 export interface CompetitorMetric {
   label: string
@@ -96,6 +96,14 @@ export interface CustomKpi {
   value: KpiValue | null
 }
 
+/** RICE breakdown behind the AI score; each dimension 1-10 (effort: lower is better). */
+export interface RiceScore {
+  reach: number
+  impact: number
+  confidence: number
+  effort: number
+}
+
 export interface Bet {
   id: string
   name: string
@@ -105,12 +113,14 @@ export interface Bet {
   score: number | null
   /** AI's bullet-point working from the last score refresh. */
   scoreRationale?: string
+  /** RICE dimension ratings behind `score`, set on each score refresh. */
+  rice?: RiceScore
   nullHypothesis: string
   targetCustomer: string
   aiSummary: string
   market: Market
   risks: Risk[]
-  kpis: Record<string, KpiValue>
+  kpis: Record<string, KpiValue | null>
   /** Bet-specific KPIs added by users (rendered after the stage schema rows). */
   customKpis?: CustomKpi[]
   /** Workstreams shown in the Initiatives tab. */
@@ -133,4 +143,6 @@ export interface Artifact {
   type: string
   size: number
   uploadedAt: string
+  /** True for AI-generated docs (PDF with stored content) — convertible to .docx. */
+  canConvert?: boolean
 }

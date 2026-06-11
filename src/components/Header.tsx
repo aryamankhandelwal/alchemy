@@ -1,4 +1,4 @@
-import { CalendarRange, LayoutGrid, Plus } from 'lucide-react'
+import { AudioLines, CalendarRange, LayoutGrid, Plus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -9,6 +9,7 @@ interface HeaderProps {
   view: View
   onViewChange: (view: View) => void
   onAddBet: () => void
+  onGranolaSync: () => void
 }
 
 const VIEWS: { id: View; label: string; icon: typeof LayoutGrid }[] = [
@@ -16,7 +17,7 @@ const VIEWS: { id: View; label: string; icon: typeof LayoutGrid }[] = [
   { id: 'timeline', label: 'Gantt', icon: CalendarRange }
 ]
 
-export function Header({ view, onViewChange, onAddBet }: HeaderProps) {
+export function Header({ view, onViewChange, onAddBet, onGranolaSync }: HeaderProps) {
   return (
     <header className="flex items-center justify-between px-8 py-5 border-b bg-background">
       <div className="flex items-center gap-2">
@@ -46,6 +47,16 @@ export function Header({ view, onViewChange, onAddBet }: HeaderProps) {
             </button>
           ))}
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onGranolaSync}
+          className="text-xs uppercase tracking-wider2 text-muted-foreground hover:text-foreground"
+        >
+          <AudioLines className="!size-3.5" />
+          Granola Sync
+        </Button>
         <Button
           type="button"
           variant="outline"

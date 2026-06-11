@@ -8,7 +8,7 @@ function renderKpiTable(stage: Stage): string {
     .join('\n')
 }
 
-const FRAMEWORK_PRIMER = `# New Horizons framework
+export const FRAMEWORK_PRIMER = `# New Horizons framework
 
 Astra Tech's stage-gated portfolio system for new product bets. Every bet sits at one (Stage × Decision) cell.
 
@@ -40,15 +40,11 @@ ${renderKpiTable('Scale')}
 - Strong across dimensions → Prioritise.
 - A bet can be Proceed at one stage and Kill at the next if real-world signals shift.`
 
-const OUTPUT_CONTRACT = `# Your job
-
-You are an in-app assistant inside Alchemy, the New Horizons portfolio dashboard. The user is a senior operator (Strategy / COO Office). You help them update bets and answer framework questions.
-
-Return a JSON object with two keys:
-
-1. **patch** — either \`null\` (no update — user is asking a question or chatting), or a flat object whose keys are dot-paths into the bet and values are the new values.
-
-   Examples of valid patches:
+/**
+ * The patch contract shared by every AI surface that emits bet patches
+ * (chat, Granola transcript extraction). Mirrored in server/pyserver.py.
+ */
+export const PATCH_REFERENCE = `Examples of valid patches:
    - \`{ "kpis.ltvCac": 2.3 }\`
    - \`{ "decision": "Prioritise" }\`
    - \`{ "kpis.activationRate": 0.18 }\`
@@ -69,7 +65,17 @@ Return a JSON object with two keys:
      - Edit: \`{ "initiatives[0].name": "..." }\`, \`{ "initiatives[0].notes": "..." }\`, \`{ "initiatives[0].subs[1].done": true }\`, \`{ "initiatives[0].subs[1].due": "2026-07-15" }\`
      - Delete: \`{ "initiatives.remove": "<id or exact name>" }\` or \`{ "initiatives[0].subs.remove": "<id or exact name>" }\` (also works on \`risks\` / \`market.competitors\` / \`customKpis\`).
 
-   KPI value formats: percentages as decimals (0.18 for 18%), LTV/CAC as multiples (2.3), payback as integer months, speed-to-MVP as integer weeks. Enum KPIs use the exact strings from the threshold table (e.g. "Well-defined", "Approaching breakeven", "Fully approved").
+   KPI value formats: percentages as decimals (0.18 for 18%), LTV/CAC as multiples (2.3), payback as integer months, speed-to-MVP as integer weeks. Enum KPIs use the exact strings from the threshold table (e.g. "Well-defined", "Approaching breakeven", "Fully approved").`
+
+const OUTPUT_CONTRACT = `# Your job
+
+You are an in-app assistant inside Alchemy, the New Horizons portfolio dashboard. The user is a senior operator (Strategy / COO Office). You help them update bets and answer framework questions.
+
+Return a JSON object with two keys:
+
+1. **patch** — either \`null\` (no update — user is asking a question or chatting), or a flat object whose keys are dot-paths into the bet and values are the new values.
+
+${PATCH_REFERENCE}
 
 2. **reply** — one to two short sentences. Direct, professional tone. Acknowledge what was updated, or answer the question. Do NOT repeat the patch back as text. Do NOT pad with hedging.
 

@@ -1,4 +1,4 @@
-import { Clock, Move, Sparkles, type LucideIcon } from 'lucide-react'
+import { AudioLines, Clock, Move, Sparkles, type LucideIcon } from 'lucide-react'
 
 import { Card } from '@/components/ui/card'
 import { describeChange } from '@/lib/history'
@@ -14,7 +14,8 @@ interface SourceMeta {
 const SOURCE_META: Record<HistorySource, SourceMeta> = {
   ai: { label: 'AI update', Icon: Sparkles, tone: 'text-primary' },
   drag: { label: 'Board move', Icon: Move, tone: 'text-warning' },
-  system: { label: 'System', Icon: Clock, tone: 'text-muted-foreground' }
+  system: { label: 'System', Icon: Clock, tone: 'text-muted-foreground' },
+  granola: { label: 'Granola sync', Icon: AudioLines, tone: 'text-success' }
 }
 
 function formatTimestamp(iso: string): string {
