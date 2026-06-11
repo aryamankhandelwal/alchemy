@@ -10,9 +10,9 @@ import { Binary, type Collection, type Db } from 'mongodb'
 import { SEED_BETS } from '../src/data/bets'
 import type { Bet } from '../src/types/bet'
 
-// Bundlers (Vercel) relocate __dirname; fall back to the project cwd.
+// __dirname only exists in CJS (vite dev); on Vercel (ESM) fall back to cwd.
 const SEED_DIR_CANDIDATES = [
-  path.resolve(__dirname, '../seed'),
+  ...(typeof __dirname !== 'undefined' ? [path.resolve(__dirname, '../seed')] : []),
   path.resolve(process.cwd(), 'seed')
 ]
 const SEED_DIR = SEED_DIR_CANDIDATES.find((p) => fs.existsSync(p)) ?? SEED_DIR_CANDIDATES[0]
