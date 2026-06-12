@@ -1,6 +1,6 @@
 # Alchemy
 
-New Bets Portfolio Dashboard for Astra Tech's **New Horizons** initiative.
+Dynamic New Bets Portfolio for Astra Tech's initiatives in pipeline.
 
 ```bash
 npm install
