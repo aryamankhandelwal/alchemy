@@ -76317,7 +76317,10 @@ var ROUTES = [
 ];
 var ARTIFACT_FILE_RE = /^\/api\/artifacts\/([^/]+)\/file$/;
 async function handler(req, res) {
-  const url = (req.url ?? "").split("?")[0];
+  let url = (req.url ?? "").split("?")[0];
+  const qp = req.query?.path;
+  if (typeof qp === "string" && qp) url = `/api/${qp}`;
+  else if (Array.isArray(qp) && qp.length) url = `/api/${qp.join("/")}`;
   const method = req.method ?? "GET";
   try {
     const fileMatch = method === "GET" ? ARTIFACT_FILE_RE.exec(url) : null;

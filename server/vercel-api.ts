@@ -141,7 +141,12 @@ const ROUTES: Array<[string, RegExp, Handler]> = [
 const ARTIFACT_FILE_RE = /^\/api\/artifacts\/([^/]+)\/file$/
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const url = (req.url ?? '').split('?')[0]
+  // Requests arrive via the vercel.json rewrite "/api/(.*)" → "/api/index?path=$1"
+  // (filesystem catch-all [...path] doesn't match nested segments reliably).
+  let url = (req.url ?? '').split('?')[0]
+  const qp = req.query?.path
+  if (typeof qp === 'string' && qp) url = `/api/${qp}`
+  else if (Array.isArray(qp) && qp.length) url = `/api/${qp.join('/')}`
   const method = req.method ?? 'GET'
 
   try {

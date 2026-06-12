@@ -1,8 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index?path=$1" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
   "functions": {
-    "api/[...path].mjs": {
+    "api/index.mjs": {
       "maxDuration": 60,
       "includeFiles": "seed/**"
     }
