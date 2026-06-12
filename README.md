@@ -8,6 +8,6 @@ cp .env.example .env   # add OPENROUTER_API_KEY
 npm run dev
 ```
 
-Open http://localhost:5173.
+Open http://astra-alchemy.vercel.app.
 
 See [`CLAUDE.md`](./CLAUDE.md) for the full project documentation.
